@@ -1,0 +1,16 @@
+{
+  "name": "aura-monorepo",
+  "version": "1.0.0",
+  "description": "Aura Agentic Wallet Monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "programs/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces"
+  }
+}
