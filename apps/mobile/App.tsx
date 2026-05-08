@@ -1,26 +1,80 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
-import { Mic, MicOff, Wallet as WalletIcon, Shield } from 'lucide-react-native';
+import { Mic, MicOff, Wallet as WalletIcon, Shield, Send } from 'lucide-react-native';
 import { WalletProvider, useWallet } from './src/hooks/useWallet';
+import { useAudioRecording } from './src/hooks/useAudioRecording';
+import { fetchIntent, fetchRoute } from './src/lib/api';
+import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol';
+import { VersionedTransaction } from '@solana/web3.js';
 
 function AuraHome() {
-  const { walletAddress, loading, connectWallet } = useWallet();
-  const [isListening, setIsListening] = useState(false);
+  const { walletAddress, loading: walletLoading, connectWallet } = useWallet();
+  const { isRecording, startRecording, stopRecording } = useAudioRecording();
+  
   const [status, setStatus] = useState('Welcome to Aura');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState<any>(null);
 
-  const toggleListening = () => {
+  const handleVoiceIntent = async () => {
     if (!walletAddress) {
       Alert.alert('Connect Wallet', 'Please connect your wallet first.');
       return;
     }
-    setIsListening(!isListening);
-    setStatus(isListening ? 'Awaiting Intent...' : 'Listening...');
-    
-    if (!isListening) {
-      setTimeout(() => {
-        setIsListening(false);
-        setStatus('Parsed: Swap 1 SOL for USDC');
-      }, 3000);
+
+    if (!isRecording) {
+      await startRecording();
+      setStatus('Listening to your intent...');
+    } else {
+      setIsProcessing(true);
+      setStatus('Processing voice...');
+      const uri = await stopRecording();
+      
+      try {
+        // In a real app, we'd upload the audio file here.
+        // For this hackathon/TDD version, we'll simulate the text from voice.
+        const mockVoiceText = "swap 1 SOL for USDC"; 
+        
+        setStatus('Orchestrating intent...');
+        const intent = await fetchIntent(mockVoiceText);
+        
+        setStatus(`Found route: ${intent.action} ${intent.amount} ${intent.asset}`);
+        const route = await fetchRoute(intent);
+        
+        setCurrentRoute(route);
+        setStatus('Route ready for execution');
+      } catch (error: any) {
+        Alert.alert('Error', error.message);
+        setStatus('Failed to process intent');
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const executeTransaction = async () => {
+    if (!currentRoute || !walletAddress) return;
+
+    setIsProcessing(true);
+    setStatus('Preparing transaction...');
+
+    try {
+      await transact(async (wallet) => {
+        // In a real scenario, the backend would return a base64 encoded transaction
+        // For now, we simulate the signing flow.
+        setStatus('Waiting for signature...');
+        
+        // This is a placeholder for actual MWA transaction signing
+        // const signedTx = await wallet.signTransactions({ transactions: [...] });
+        
+        Alert.alert('Success', 'Transaction simulated and ready for delegation!');
+        setStatus('Transaction Executed');
+        setCurrentRoute(null);
+      });
+    } catch (error: any) {
+      Alert.alert('Execution Error', error.message);
+      setStatus('Execution failed');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -31,9 +85,9 @@ function AuraHome() {
         <TouchableOpacity 
           style={[styles.walletButton, walletAddress ? styles.walletConnected : null]} 
           onPress={connectWallet}
-          disabled={loading}
+          disabled={walletLoading}
         >
-          {loading ? (
+          {walletLoading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <>
@@ -53,29 +107,39 @@ function AuraHome() {
         </View>
 
         <View style={styles.visualizer}>
-          {isListening ? (
+          {isRecording ? (
             <View style={styles.pulseContainer}>
               <View style={[styles.pulse, { transform: [{ scale: 1.2 }] }]} />
-              <View style={[styles.pulse, { transform: [{ scale: 1.5 }], opacity: 0.3 }]} />
+              <View style={[styles.pulse, { transform: [{ scale: 1.6 }], opacity: 0.2 }]} />
             </View>
+          ) : isProcessing ? (
+            <ActivityIndicator color="#6366f1" size="large" />
           ) : (
             <Shield color="#6366f1" size={80} opacity={0.2} />
           )}
         </View>
 
-        <TouchableOpacity 
-          style={[styles.micButton, isListening ? styles.micActive : null]} 
-          onPress={toggleListening}
-        >
-          {isListening ? (
-            <MicOff color="#fff" size={40} />
-          ) : (
-            <Mic color="#fff" size={40} />
-          )}
-        </TouchableOpacity>
+        {currentRoute ? (
+          <TouchableOpacity 
+            style={styles.executeButton} 
+            onPress={executeTransaction}
+            disabled={isProcessing}
+          >
+            <Send color="#fff" size={32} />
+            <Text style={styles.executeText}>Execute Route</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.micButton, isRecording ? styles.micActive : null]} 
+            onPress={handleVoiceIntent}
+            disabled={isProcessing}
+          >
+            {isRecording ? <MicOff color="#fff" size={40} /> : <Mic color="#fff" size={40} />}
+          </TouchableOpacity>
+        )}
         
         <Text style={styles.hint}>
-          {isListening ? 'Tap to stop' : 'Tap to speak your intent'}
+          {isRecording ? 'Tap to process' : currentRoute ? 'Sign to execute on Solana' : 'Tap to speak your intent'}
         </Text>
       </View>
 
@@ -194,11 +258,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#ef4444',
     shadowColor: '#ef4444',
   },
+  executeButton: {
+    width: '100%',
+    height: 70,
+    backgroundColor: '#22c55e',
+    borderRadius: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  executeText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+  },
   hint: {
     marginTop: 20,
     color: '#94a3b8',
     fontSize: 14,
     fontWeight: '500',
+    textAlign: 'center',
   },
   footer: {
     paddingBottom: 20,
