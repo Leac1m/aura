@@ -3,6 +3,16 @@ import 'buffer';
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 
+// Polyfill DOMException for web-centric SDKs like ElevenLabs
+if (typeof global.DOMException === 'undefined') {
+  (global as any).DOMException = class DOMException extends Error {
+    constructor(message: string, name: string) {
+      super(message);
+      this.name = name;
+    }
+  };
+}
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';
