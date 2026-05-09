@@ -1,6 +1,18 @@
 import { install } from 'react-native-quick-crypto';
 install();
 
+import { registerGlobals } from '@livekit/react-native';
+registerGlobals();
+
+// Polyfill missing mediaDevices method that ElevenLabs expects
+if (global.navigator?.mediaDevices && !(global.navigator.mediaDevices as any).getSupportedConstraints) {
+  (global.navigator.mediaDevices as any).getSupportedConstraints = () => ({
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  });
+}
+
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
 

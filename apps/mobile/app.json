@@ -33,7 +33,8 @@
       ]
     },
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      "./plugins/withLiveKit.js"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
