@@ -1,4 +1,10 @@
-const BASE_URL = "http://10.1.1.58:3000" //'http://localhost:3000'; // Change to your local IP for physical device testing
+const BASE_URL = 'http://localhost:3000'; // Change to your local IP for physical device testing
+
+export async function fetchSignedUrl() {
+  const response = await fetch(`${BASE_URL}/api/agent/signed-url`);
+  if (!response.ok) throw new Error('Failed to fetch signed URL');
+  return response.json();
+}
 
 export async function fetchIntent(text: string) {
   const response = await fetch(`${BASE_URL}/api/intent?text=${encodeURIComponent(text)}`);
@@ -12,7 +18,10 @@ export async function fetchRoute(intent: any) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(intent),
   });
-  if (!response.ok) throw new Error('Failed to fetch route');
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.details || errorData.error || 'Failed to fetch route');
+  }
   return response.json();
 }
 
