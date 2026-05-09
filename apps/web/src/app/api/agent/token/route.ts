@@ -37,14 +37,16 @@ export async function GET() {
   }
 
   try {
+    // WebRTC token endpoint for ElevenLabs Conversational AI
     const data = await fetchWithRetry(
-      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
+      `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${agentId}`,
       apiKey
     );
 
-    return NextResponse.json({ signedUrl: data.signed_url });
+    // Return the token as conversationToken to match the startSession parameter
+    return NextResponse.json({ conversationToken: data.token });
   } catch (error: any) {
-    console.error('Error generating signed URL:', {
+    console.error('Error fetching conversation token:', {
       message: error.message,
       code: error.code,
       response: error.response?.data
@@ -52,7 +54,7 @@ export async function GET() {
 
     const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout');
     return NextResponse.json(
-      { error: isTimeout ? 'Connection to ElevenLabs timed out. Please check your network.' : (error.message || 'Failed to generate signed URL') },
+      { error: isTimeout ? 'Connection to ElevenLabs timed out. Please check your network.' : (error.message || 'Failed to fetch conversation token') },
       { status: isTimeout ? 504 : 500 }
     );
   }

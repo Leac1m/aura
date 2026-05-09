@@ -8,36 +8,71 @@
         "prompt": "# Personality\nYou are Aura, a professional and efficient Solana DeFi expert. You are the voice interface for a smart wallet. You are security-conscious, concise, and focused on helping users execute on-chain actions.\n\n# Tone\n- Bullet-pointed where helpful\n- Concise and direct\n- Professional and helpful\n- Confident in Solana ecosystem knowledge\n\n# Goal\nYour primary goal is to help users perform DeFi actions (swap, stake, send) by capturing their intent and triggering the 'trigger_solana_action' tool.\n\n1. Greet the user as Aura.\n2. Listen for DeFi goals (e.g., 'Swap 1 SOL for USDC', 'Stake 5 SOL').\n3. If details are missing (e.g., 'Swap SOL'), ask clarifying questions ('How much SOL would you like to swap?').\n4. Once all parameters (action, amount, asset) are clear, call the 'trigger_solana_action' tool.\n5. Inform the user that you've orchestrated the route and they can sign the transaction on their screen.\n\n# Guardrails\n- Only discuss Solana-related topics.\n- Do not provide financial advice.\n- Do not ask for or store private keys.",
         "llm": "gpt-4o",
         "temperature": 0.7,
-        "tools": [
-          {
-            "type": "client",
-            "name": "trigger_solana_action",
-            "description": "Triggers a Solana transaction preparation flow in the mobile app after parsing user intent.",
-            "parameters": {
-              "type": "object",
-              "properties": {
-                "action": {
-                  "type": "string",
-                  "enum": ["swap", "stake", "send", "bridge"],
-                  "description": "The type of DeFi action to perform."
-                },
-                "amount": {
-                  "type": "number",
-                  "description": "The numerical amount of the asset."
-                },
-                "asset": {
-                  "type": "string",
-                  "description": "The symbol of the asset to move (e.g., SOL, USDC, JitoSOL)."
-                },
-                "to_asset": {
-                  "type": "string",
-                  "description": "The target asset for a swap or bridge (optional)."
-                }
-              },
-              "required": ["action", "amount", "asset"]
+        "tools": {
+          "type": "client",
+          "name": "trigger_solana_action",
+          "description": "Orchestrates a Solana DeFi action based on user intent captured from voice.",
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "pre_tool_speech": "auto",
+          "tool_call_sound": null,
+          "tool_call_sound_behavior": "auto",
+          "tool_error_handling_mode": "auto",
+          "execution_mode": "immediate",
+          "assignments": [],
+          "expects_response": false,
+          "response_timeout_secs": 1,
+          "parameters": [
+            {
+              "id": "action",
+              "type": "string",
+              "value_type": "llm_prompt",
+              "description": "The DeFi action type: swap, stake, send, or bridge.",
+              "dynamic_variable": "",
+              "constant_value": "",
+              "enum": ["swap", "stake", "send", "bridge"],
+              "is_system_provided": false,
+              "required": true
+            },
+            {
+              "id": "amount",
+              "type": "number",
+              "value_type": "llm_prompt",
+              "description": "The numerical amount of the asset to use.",
+              "dynamic_variable": "",
+              "constant_value": "",
+              "enum": null,
+              "is_system_provided": false,
+              "required": true
+            },
+            {
+              "id": "asset",
+              "type": "string",
+              "value_type": "llm_prompt",
+              "description": "The source asset symbol (e.g. SOL, USDC, JitoSOL).",
+              "dynamic_variable": "",
+              "constant_value": "",
+              "enum": null,
+              "is_system_provided": false,
+              "required": true
+            },
+            {
+              "id": "to_asset",
+              "type": "string",
+              "value_type": "llm_prompt",
+              "description": "The destination asset symbol for swaps or bridges.",
+              "dynamic_variable": "",
+              "constant_value": "",
+              "enum": null,
+              "is_system_provided": false,
+              "required": false
             }
-          }
-        ]
+          ],
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          },
+          "response_mocks": []
+        }
       }
     },
     "tts": {

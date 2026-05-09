@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Alert } from 'react-native';
 import { useConversation } from "@elevenlabs/react-native";
-import { fetchSignedUrl, fetchRoute } from '../lib/api';
+import { fetchConversationToken, fetchRoute } from '../lib/api';
 
 interface AuraIntent {
   action: string;
@@ -68,8 +68,8 @@ export function useAuraConversation(walletAddress: string | null) {
     setStatus('Initializing Aura...');
 
     try {
-      const { signedUrl } = await fetchSignedUrl();
-      await conversation.startSession({ signedUrl });
+      const { conversationToken } = await fetchConversationToken();
+      await conversation.startSession({ conversationToken });
     } catch (error: any) {
       console.error("Start Session Error:", error);
       Alert.alert('Initialization Error', error.message);
