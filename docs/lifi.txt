@@ -1,0 +1,877 @@
+# LI.FI
+
+> LI.FI is the routing and execution layer for cross-chain liquidity, payments, swaps, and yield. One integration provides access to bridges, DEX aggregators, intent-based solvers, and DeFi protocols across 58+ chains (EVM, Solana, Bitcoin, SUI).
+
+> Last updated: May 2026. Reflects: Earn product, Intents API + Solver MCP, Composer at 20+ protocols, dedicated Agents tab, CLI, MCP Server.
+
+---
+
+## How to Use This Document
+
+This is the canonical machine-readable index for `docs.li.fi`. AI agents and crawlers should:
+
+1. Use the **Canonical Page List** below to find the highest-priority pages.
+2. Use the **Products** section for short summaries of each LI.FI surface.
+3. Use the **Sitemap** at the bottom to discover every documentation page by section.
+
+For machine-readable schemas:
+- OpenAPI spec for the LI.FI API: https://docs.li.fi/openapi.yaml
+- OpenAPI spec for the Earn Data API: https://docs.li.fi/earn-openapi.yaml
+- AI plugin descriptor: https://docs.li.fi/.well-known/ai-plugin.json
+
+---
+
+## Canonical Page List (Priority Order)
+
+For AI agents integrating LI.FI, read these pages in order of relevance:
+
+1. **Agent Integration** — https://docs.li.fi/agents/overview — Entry point for AI agent integrations, includes the minimal endpoint set
+2. **Concepts & Objects** — https://docs.li.fi/agents/concepts — Core object definitions (Quote, Route, Step, Status)
+3. **MCP Server** — https://docs.li.fi/mcp-server/overview — Hosted MCP endpoint for AI tools (Claude, Cursor, Windsurf, VS Code Copilot)
+4. **CLI** — https://docs.li.fi/cli/overview — Token-efficient CLI alternative to MCP
+5. **Get Quote API** — https://docs.li.fi/api-reference/get-a-quote-for-a-token-transfer — Primary endpoint for transfers
+6. **Check Status API** — https://docs.li.fi/api-reference/check-the-status-of-a-cross-chain-transfer — Track transfers
+7. **Error Codes** — https://docs.li.fi/api-reference/error-codes — Handle errors
+8. **Status Tracking Guide** — https://docs.li.fi/introduction/user-flows-and-examples/status-tracking — Status flow details
+9. **Composer Overview** — https://docs.li.fi/composer/overview — One-click DeFi deposits across 20+ protocols
+10. **Earn Overview** — https://docs.li.fi/earn/overview — Yield discovery API + execution via Composer
+11. **Intent / Solver Marketplace** — https://docs.li.fi/lifi-intents/introduction — Intent-based execution with competitive solver fills
+12. **Intents API Overview** — https://docs.li.fi/lifi-intents/intents-api/api-overview — Integrator-facing endpoints for the order server
+
+---
+
+## Minimal Endpoint Set for Agents
+
+Base URL: `https://li.quest/v1`
+
+### 1. GET /quote — Get a transfer quote (most important)
+
+```
+GET /v1/quote?fromChain=1&toChain=42161&fromToken=USDC&toToken=USDC&fromAmount=1000000&fromAddress=0x...
+```
+
+Returns: Quote with `transactionRequest` ready for signing.
+
+### 2. GET /status — Check transfer status
+
+```
+GET /v1/status?txHash=0x...&bridge=stargateV2&fromChain=1&toChain=42161
+```
+
+Returns: Status (`NOT_FOUND`, `PENDING`, `DONE`, `FAILED`) with substatus.
+
+### 3. GET /chains — List supported chains
+
+```
+GET /v1/chains?chainTypes=EVM
+```
+
+Returns: Array of `{id, key, name, chainType}`. `chainTypes` accepts `EVM`, `SVM`, `UTXO`, `MVM`.
+
+### 4. GET /tokens — List supported tokens
+
+```
+GET /v1/tokens?chains=1,42161
+```
+
+Returns: Map of chain ID to token arrays.
+
+### 5. GET /tools — List bridges and DEXs
+
+```
+GET /v1/tools
+```
+
+Returns: `{bridges: [...], exchanges: [...]}`.
+
+---
+
+## Decision Rules for Agents
+
+### When to use each endpoint
+- **Simple transfer:** Use `/quote` directly — returns the best route with transaction data.
+- **Compare options:** Use `/advanced/routes` — returns multiple routes.
+- **Track progress:** Poll `/status` every 10–30 seconds until `DONE` or `FAILED`.
+- **One-click DeFi (deposit, stake, lend):** Use `/quote` with `toToken` set to a vault/staking token. Composer activates automatically. See https://docs.li.fi/composer/reference/supported-protocols for live protocol coverage.
+
+### Status handling
+
+```
+PENDING                 → Keep polling
+DONE + COMPLETED        → Success, exact tokens received
+DONE + PARTIAL          → Success, but different token received (still full value)
+DONE + REFUNDED         → Failed but user got funds back
+FAILED                  → Check error, may need user action
+```
+
+### Error recovery
+- `429` (Rate limit) — Exponential backoff, retry.
+- No route found — Try different tokens or smaller amount.
+- Slippage error — Increase `slippage` parameter (default 0.005).
+- Insufficient balance — Verify user has enough tokens plus gas.
+
+### Common chain IDs
+
+| Chain | ID |
+|-------|---:|
+| Ethereum | 1 |
+| Optimism | 10 |
+| BSC | 56 |
+| Polygon | 137 |
+| Base | 8453 |
+| Arbitrum | 42161 |
+| Avalanche | 43114 |
+| Solana | 1151111081099710 |
+
+Use `/chains` for the full list; new chains are added regularly.
+
+---
+
+## Overview
+
+LI.FI sits between an integrating application and the fragmented liquidity landscape. It aggregates bridges, DEX aggregators, intent solvers, and yield protocols, normalizes token standards, calculates optimal routes, and executes transactions with built-in monitoring.
+
+### Pain Points Solved
+
+| Problem | Without LI.FI | With LI.FI |
+|---|---|---|
+| Cross-chain payments | Complex manual bridging | Single payment flow across all chains |
+| Token inconsistencies | Failed transactions on USDC vs USDC.e | Canonical mapping handles wrapped variants |
+| Multiple APIs | Maintain dozens of bridge and DEX integrations | Unified API/SDK |
+| Failed transfers | Recover yourself | Built-in fallback routing |
+| New chains | Re-integrate per chain | Continuous expansion by LI.FI |
+
+---
+
+## Products
+
+### 1. LI.FI API
+
+The core REST API for cross-chain and same-chain operations.
+
+- **Base URL:** `https://li.quest`
+- **Staging URL:** `https://staging.li.quest`
+- **OpenAPI spec:** https://docs.li.fi/openapi.yaml
+- **Documentation:** https://docs.li.fi/api-reference/introduction
+
+#### Key endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/v1/quote` | GET | Quote for cross-chain or same-chain swaps |
+| `/v1/quote/contractCalls` | POST | Quote with custom contract calls on the destination chain |
+| `/v1/advanced/routes` | POST | Multiple route options for a transfer |
+| `/v1/advanced/stepTransaction` | GET | Transaction data for a specific route step |
+| `/v1/status` | GET | Check transaction status |
+| `/v1/tokens` | GET | List all supported tokens |
+| `/v1/token` | GET | Specific token information |
+| `/v1/chains` | GET | List all supported chains |
+| `/v1/tools` | GET | List available bridges and exchanges |
+| `/v1/connections` | GET | Possible token transfer connections |
+| `/v1/gas/prices` | GET | Gas prices for all chains |
+| `/v1/gas/suggestion` | GET | Gas suggestion for a specific chain |
+
+#### Example: Get a cross-chain quote
+
+```
+GET https://li.quest/v1/quote?fromChain=1&toChain=42161&fromToken=USDC&toToken=USDC&fromAmount=100000000&fromAddress=0x...
+```
+
+Returns estimated output amount, route details, transaction calldata, gas estimates, and minimum amount received.
+
+### 2. LI.FI SDK (JavaScript / TypeScript)
+
+Full-featured SDK for frontend and backend environments.
+
+- **NPM package:** `@lifi/sdk`
+- **Documentation:** https://docs.li.fi/sdk/overview
+- **Latest major version:** v4 (April 2026)
+
+#### Features
+- Coverage of every chain, bridge, exchange, and solver LI.FI supports
+- Full route lifecycle: request → quote → execute → track
+- Event hooks for execution tracking
+- Configurable RPCs and allow/deny lists for chains, tokens, bridges
+- Standards: EIP-7702, EIP-5792, ERC-2612, EIP-712, Permit2
+- Built on Viem, Wallet Standard, and Bigmi
+- Tree-shaking and dead-code elimination for small bundles
+- Arbitrary contract calls on destination chains
+- Composer support out of the box
+
+#### Quick start
+
+```typescript
+import { createConfig, getQuote, executeRoute } from "@lifi/sdk";
+
+createConfig({ integrator: "YourAppName" });
+
+const quote = await getQuote({
+  fromChain: 1,
+  toChain: 42161,
+  fromToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum
+  toToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // USDC on Arbitrum
+  fromAmount: "100000000",
+  fromAddress: "0x...",
+});
+
+await executeRoute(quote, { updateRouteHook: (route) => console.log(route) });
+```
+
+For AI agent integrations, use the REST API directly rather than the SDK. See https://docs.li.fi/agents/overview.
+
+### 3. LI.FI Widget
+
+Embeddable UI components for cross-chain swapping and bridging.
+
+- **NPM package:** `@lifi/widget`
+- **Playground:** https://playground.li.fi
+- **Documentation:** https://docs.li.fi/widget/overview
+- **Latest major version:** v4 (April 2026)
+
+#### Features
+- Variants: compact, wide, drawer
+- Pre-configured themes with dark mode
+- Configurable allow/deny lists for chains, tokens, bridges, exchanges
+- Transaction progress and history views
+- Curated wallet lists and bookmarks
+- Full UI translations
+- Works with React, Next.js, Vue, Nuxt.js, Svelte, Remix, Gatsby, Vite, CRA, RainbowKit
+- Composer activates automatically when destination is a vault/staking token
+
+### 4. LI.FI Composer
+
+Bundle protocol interactions (deposits, staking, lending) into a single flow across any EVM chain. Works through the existing API, SDK, and Widget — no separate integration required.
+
+- **Documentation:** https://docs.li.fi/composer/overview
+- **Live protocol list:** https://docs.li.fi/composer/reference/supported-protocols
+- **Coverage:** 20+ DeFi protocols across 20+ EVM chains
+
+#### How to trigger Composer
+
+Set `toToken` to a supported protocol's vault, staking, or deposit token address. The standard `GET /v1/quote` and `POST /v1/advanced/routes` endpoints work as-is. This applies to both same-chain and cross-chain flows.
+
+#### Example: Deposit USDC into a Morpho vault on Base
+
+```
+GET https://li.quest/v1/quote?fromChain=8453&toChain=8453&fromToken=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913&toToken=0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A&fromAddress=0x...&fromAmount=1000000
+```
+
+#### Example: Cross-chain ETH on Ethereum → Morpho vault on Base
+
+```
+GET https://li.quest/v1/quote?fromChain=1&toChain=8453&fromToken=0x0000000000000000000000000000000000000000&toToken=0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A&fromAddress=0x...&fromAmount=100000000000000000
+```
+
+#### Limitations
+- EVM chains only (Solana and other non-EVM chains not supported).
+- Tokenised positions only (the protocol must return a token on deposit).
+- Some protocols are deposit-only — withdraw via the protocol's own interface.
+
+#### Composer documentation pages
+
+| Page | URL | Description |
+|---|---|---|
+| Overview | https://docs.li.fi/composer/overview | What Composer is and integration paths |
+| Quickstart | https://docs.li.fi/composer/quickstart | First Composer transaction in 5 minutes |
+| How It Works | https://docs.li.fi/composer/how-it-works | Onchain VM, eDSL, transaction lifecycle |
+| API Integration | https://docs.li.fi/composer/guides/api-integration | Integrate via REST API |
+| SDK Integration | https://docs.li.fi/composer/guides/sdk-integration | Integrate via TypeScript SDK |
+| Widget Integration | https://docs.li.fi/composer/guides/widget-integration | Composer in the LI.FI Widget |
+| Cross-Chain Compose | https://docs.li.fi/composer/guides/cross-chain-compose | Multi-chain DeFi flows |
+| Withdrawals | https://docs.li.fi/composer/guides/withdrawals | Withdraw from protocol positions |
+| Recipes | https://docs.li.fi/composer/recipes/vault-deposits | Vault deposit recipes for all supported protocols |
+| Supported Protocols | https://docs.li.fi/composer/reference/supported-protocols | Live protocol and chain list |
+| API Parameters | https://docs.li.fi/composer/reference/api-parameters | Composer-specific API parameters |
+| Error Handling | https://docs.li.fi/composer/reference/error-handling | Failure modes and recovery |
+| Limitations | https://docs.li.fi/composer/reference/limitations | Current constraints |
+| Protocol Integration | https://docs.li.fi/composer/for-protocols/integration-guide | How to get a protocol integrated |
+| Technical Requirements | https://docs.li.fi/composer/for-protocols/technical-requirements | Requirements for new protocol integration |
+
+### 5. LI.FI Earn
+
+Surface yield opportunities across 20+ DeFi protocols and execute one-click deposits via Composer. Combines the Earn Data API for vault discovery and portfolio tracking with Composer for execution.
+
+- **Documentation:** https://docs.li.fi/earn/overview
+- **Earn Data API base URL:** `https://earn.li.fi`
+- **OpenAPI spec:** https://docs.li.fi/earn-openapi.yaml
+- **Coverage:** 20+ protocols (Aave, Morpho, Euler, Pendle, and more) across 20+ chains
+
+#### Earn Data API endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/v1/chains` | GET | Chains with at least one indexed vault |
+| `/v1/protocols` | GET | Protocols with at least one indexed vault |
+| `/v1/vaults` | GET | List vaults with filters (`chainId`, `asset`, `protocol`, `isTransactional`, `isRedeemable`, `isComposerSupported`) and sorting (`apy`, `tvl`) |
+| `/v1/vaults/{chainId}/{address}` | GET | Vault detail by chain ID and address |
+| `/v1/portfolio/{userAddress}/positions` | GET | A user's vault positions across protocols |
+
+#### NormalizedVault schema
+
+Every vault returns the same shape regardless of protocol. Important fields:
+
+- `address`, `network`, `chainId`, `slug`, `protocol`, `underlyingTokens`
+- `analytics.apy.{base,reward,total}`, `apy1d`, `apy7d`, `apy30d`, `tvl.usd`
+- `isTransactional` — Composer can deposit
+- `isRedeemable` — Composer can withdraw
+- `depositPacks`, `redeemPacks` — Composer zap-pack metadata
+
+Use the vault `address` as `toToken` in Composer's `GET /v1/quote` to deposit.
+
+#### Try it out
+
+```
+GET https://earn.li.fi/v1/vaults?chainId=8453&asset=USDC&sortBy=apy&limit=5
+```
+
+Returns the top USDC vaults on Base sorted by APY.
+
+#### Earn documentation pages
+
+| Page | URL | Description |
+|---|---|---|
+| Overview | https://docs.li.fi/earn/overview | What Earn is, the two-layer architecture, and the integration flow |
+| Quickstart | https://docs.li.fi/earn/quickstart | First Earn API calls in under 5 minutes |
+| How It Works | https://docs.li.fi/earn/how-it-works | Data pipeline, NormalizedVault schema, freshness |
+| API Integration | https://docs.li.fi/earn/guides/api-integration | Full endpoint reference and parameters |
+| Supported Protocols | https://docs.li.fi/earn/guides/supported-protocols | Currently indexed protocols and chains |
+| Discover and Deposit Recipe | https://docs.li.fi/earn/recipes/discover-and-deposit | End-to-end: list vaults → deposit via Composer |
+
+### 6. LI.FI Intent / Solver Marketplace
+
+Intent-based execution where solvers publish standing quotes and the order server matches user intents to available liquidity. Same-chain and cross-chain.
+
+- **Documentation:** https://docs.li.fi/lifi-intents/introduction
+- **Production order server:** `https://order.li.fi` (interactive docs at `/docs`)
+- **Testnet order server:** `https://order-dev.li.fi`
+- **Solver UI:** https://intents.li.fi (testnet: https://devintents.li.fi)
+- **Foundation:** Official foundation of the Open Intents Framework (OIF) led by the Ethereum Foundation
+
+#### How it works
+
+1. User deposits tokens into an input settler (Escrow per-intent or Compact resource lock).
+2. The lock generates a proof of deposit, which is broadcast to the order server and solver network.
+3. The order server matches the intent against existing solver quotes (standing inventory, not per-intent RFQ).
+4. The winning solver delivers the requested assets on the destination chain.
+5. The output settler records the fill; the oracle/input settler verifies delivery and releases locked funds.
+
+#### Integrator API (open, no API key)
+
+Base URL: `https://order.li.fi`
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/quote/request` | POST | Request a quote for an intent |
+| `/api/v1/integrator/quote/request` | GET | V1 quote endpoint with integrator-friendly parameters |
+| `/orders/submit` | POST | Submit an order (intent) to the solver network |
+| `/orders` | GET | List orders with filters |
+| `/orders/status` | GET | Get order status by `onChainOrderId` or `catalystOrderId` |
+| `/chains/supported` | GET | Supported chains |
+| `/routes` | GET | Supported chain/asset pairs |
+
+Order lifecycle: `Signed → Delivered → Settled`. If not filled before `fillDeadline`, the order can be refunded after `expires`.
+
+The Intents API uses [EIP-7930 interoperable addresses](https://eips.ethereum.org/EIPS/eip-7930) for `user`, `asset`, and `receiver` fields.
+
+#### Solver API (API key required)
+
+Base URL: `https://order.li.fi` with `api-key` header. Solvers register via the solver UI.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/quotes/submit` | POST | Submit/update up to 200K solver quotes at once |
+| `/solver-api/quotes` | GET | Retrieve uploaded quote inventory |
+| `/solver-api/account/register` | POST | Register a solver account |
+| `/solver-api/account/unregister` | POST | Unregister a solver account |
+| `/solver-api/solver/identities` | GET | Solver identities for reputation tracking |
+
+Solvers receive orders via WebSocket (recommended) or by monitoring `Open` events on `InputSettlerEscrow` / `InputSettlerCompact` contracts.
+
+Solver flow: Register account → Submit quotes → Receive orders → Fill outputs → Validate via oracle → Settle.
+
+#### Intents MCP Server
+
+A separate hosted MCP server exposes Intents-specific tools to AI agents (quote requests, order submission, status). Documentation: https://docs.li.fi/lifi-intents/mcp-server/overview
+
+#### Key concepts
+
+| Concept | Description |
+|---|---|
+| Intent | User request expressing a desired outcome without specifying execution |
+| Solver | Entity publishing standing quotes and filling intents with its own capital |
+| Input Settler | Source-side settlement contract (Escrow or Compact) |
+| Escrow (`InputSettlerEscrow`) | Per-intent lock — funds escrowed per order |
+| Compact (`InputSettlerCompact`) | Deposit-based — fund once, issue multiple intents from allocated balances |
+| Order Server | Off-chain matching layer mapping intents to solver quotes |
+| Output Settler | Destination-side contract that accepts fills and generates attestations |
+| Oracle | Verification layer that proves delivery for cross-chain settlement (for same-chain, the output settler doubles as the oracle) |
+| StandardOrder | Canonical on-chain order struct |
+| `fillDeadline` vs `expires` | Solver fill cutoff vs final deadline after which refunds are processable |
+| Order types | Limit, exclusive limit, Dutch auction, exclusive Dutch auction |
+
+Full glossary: https://docs.li.fi/lifi-intents/knowledge-database/glossary
+
+### 7. LI.FI MCP Server (general)
+
+Hosted Model Context Protocol server that exposes the LI.FI API as MCP tools, so AI hosts (Claude, Cursor, Windsurf, VS Code Copilot) can call LI.FI without constructing HTTP requests.
+
+- **Hosted endpoint:** `https://mcp.li.quest/mcp`
+- **Documentation:** https://docs.li.fi/mcp-server/overview
+- **GitHub:** https://github.com/lifinance/lifi-mcp
+- **Read-only:** Returns unsigned `transactionRequest` objects; signing and broadcast happen in your wallet.
+
+#### Minimal client config
+
+```json
+{
+  "mcpServers": {
+    "lifi": {
+      "type": "http",
+      "url": "https://mcp.li.quest/mcp"
+    }
+  }
+}
+```
+
+Add an API key via `Authorization: Bearer ...` or `X-LiFi-Api-Key: ...` headers for higher rate limits.
+
+Typical workflow: `get-chains → get-token → get-quote → get-allowance → (sign + broadcast externally) → get-status`.
+
+### 8. LI.FI CLI
+
+Scriptable command-line interface that wraps the LI.FI REST API. Outputs human-readable tables in TTYs and JSON when piped or with `--json`.
+
+- **NPM package:** `@lifi/cli`
+- **Documentation:** https://docs.li.fi/cli/overview
+- **GitHub:** https://github.com/lifinance/lifi-cli
+- **Read-only:** Returns unsigned `transactionRequest`; sign externally.
+
+#### Quickstart
+
+```bash
+npm install -g @lifi/cli
+lifi chains
+```
+
+Or run without installing: `npx @lifi/cli chains`. AI agents that prefer compact output over raw API JSON often use the CLI for token efficiency.
+
+---
+
+## For AI Agents
+
+LI.FI provides a dedicated agent integration surface with quick-start recipes, workflow guides, and a reference covering endpoints, error playbooks, and schemas.
+
+- **Entry point:** https://docs.li.fi/agents/overview
+- **Concepts:** https://docs.li.fi/agents/concepts
+- **Five-call recipe:** https://docs.li.fi/agents/quick-start/five-call-recipe
+- **Decision tables:** https://docs.li.fi/agents/quick-start/decision-tables
+- **Code samples:** https://docs.li.fi/agents/quick-start/code-samples
+- **Workflows:** approvals, execution, status recovery, partial completion (see Sitemap)
+- **Reference:** endpoint specs, error playbooks, schemas (see Sitemap)
+
+LI.FI capabilities are also published as pre-built agent skills on [ClawdHub](https://clawdhub.com), [skills.sh](https://skills.sh), and [Playbooks](https://playbooks.com).
+
+---
+
+## Supported Ecosystems
+
+### Blockchains (58+)
+
+**EVM:** Ethereum, Arbitrum, Arbitrum Nova, Optimism, Base, Polygon, Avalanche, BSC, Fantom, Gnosis, zkSync Era, Polygon zkEVM, Linea, Scroll, Mantle, Mode, Blast, Celo, Aurora, Moonbeam, Moonriver, Metis, Boba, Fuse, and more. Sepolia, Base Sepolia, and Arbitrum Sepolia testnets are available.
+
+**Non-EVM:** Solana (full SPL token support), Bitcoin (native BTC swaps and bridging), SUI, TRON.
+
+Live list: `GET https://li.quest/v1/chains` or https://docs.li.fi/introduction/chains.
+
+### Bridges aggregated
+
+Stargate, Across, Hop, Celer cBridge, Connext, Synapse, Hyphen, Allbridge, Wormhole, LayerZero, Axelar, deBridge, Symbiosis, Router Protocol, Orbiter, Relay, Mayan v2, NEAR Intents, and more.
+
+### DEX aggregators
+
+1inch, 0x, Paraswap, KyberSwap, OpenOcean, DODO, Odos, Bitget, OKX, Jupiter (Solana), and more.
+
+### Solvers
+
+LI.FI Solver, Enso, Propeller Heads, Bungee, and a growing solver network for the Intents marketplace.
+
+---
+
+## Architecture
+
+### System components
+
+1. **dApp interface** — User-facing application integrating LI.FI API/SDK/Widget.
+2. **LI.FI API** — Off-chain aggregation and smart order routing.
+3. **LI.FI Diamond contract** — On-chain entry point using the diamond pattern (EIP-2535).
+4. **Facet contracts** — Modular contracts for each bridge, DEX, and solver.
+5. **Bridge / DEX / Solver contracts** — Final execution on the underlying protocol.
+
+### Order flow
+
+1. User requests a quote from the dApp.
+2. The LI.FI API queries bridges, DEXs, and solvers for pricing.
+3. Optimal route returned to the dApp.
+4. User signs the transaction.
+5. The Diamond contract routes to the appropriate facet.
+6. The facet executes via the underlying protocol.
+7. Assets delivered to the user.
+
+### Smart contracts
+
+- **Diamond pattern** — Upgradeable, modular architecture
+- **Facets** — Separate contracts per bridge/DEX integration
+- **Executor** — Handles complex multi-step transactions
+- **Receiver** — Manages incoming cross-chain transfers
+- **Composer onchain VM** — Executes Composer compositions on EVM chains
+- **InputSettlerEscrow / InputSettlerCompact** — Source-side settlement for Intents
+- **OutputSettlerSimple** — Destination-side settlement for Intents
+
+Contract addresses: https://docs.li.fi/introduction/lifi-architecture/smart-contract-addresses
+
+---
+
+## Integration Guides
+
+### Getting started
+- API introduction: https://docs.li.fi/api-reference/introduction
+- SDK installation: https://docs.li.fi/sdk/installing-the-sdk
+- Widget setup: https://docs.li.fi/widget/install-widget
+- Composer quickstart: https://docs.li.fi/composer/quickstart
+- Earn quickstart: https://docs.li.fi/earn/quickstart
+- Intents quickstart: https://docs.li.fi/lifi-intents/quickstart
+- Agent integration: https://docs.li.fi/agents/overview
+
+### Common flows
+- Request a quote: https://docs.li.fi/api-reference/get-a-quote-for-a-token-transfer
+- Execute a swap: https://docs.li.fi/sdk/execute-routes
+- Track status: https://docs.li.fi/api-reference/check-the-status-of-a-cross-chain-transfer
+- Handle errors: https://docs.li.fi/api-reference/error-codes
+- Debug failed transactions: https://docs.li.fi/guides/debug-failed-transactions
+
+### Monetization
+
+Integrators can charge fees on transactions:
+- Documentation: https://docs.li.fi/introduction/integrating-lifi/monetizing-integration
+- FeeForwarder migration: https://docs.li.fi/introduction/integrating-lifi/fee-forwarder
+- Fees are taken from the source token; withdraw directly or via LI.FI's consolidation service.
+
+---
+
+## Key Concepts
+
+### Quote vs Route
+- **Quote:** Single optimized route with ready-to-execute transaction data.
+- **Route:** Path from source to destination; may require additional `stepTransaction` calls.
+
+### Steps and actions
+- **Step:** Individual operation in a route (swap, bridge, or combined).
+- **Action:** Specific operation type within a step.
+
+### Slippage
+- **Auto:** LI.FI picks a buffer based on asset liquidity.
+- **Default:** ~0.5% with minimum-received slightly below the estimate.
+- **Minimum received:** Enforced on-chain; the transaction reverts if not met.
+
+### Transaction outcomes
+- **Same-chain swap:** Atomic — reverts entirely on failure.
+- **Cross-chain:** Bridge can succeed while the destination swap fails. Funds are then refunded in the bridged asset on the destination chain.
+
+---
+
+## Rate Limits
+
+| Tier | Limit |
+|---|---|
+| Without API key | 200 requests / 2 hours |
+| With API key | 200 requests / minute |
+
+Rate limits apply to the LI.FI API, hosted MCP Server, and CLI. Request a key at https://li.fi/.
+
+Detailed page: https://docs.li.fi/api-reference/rate-limits
+
+---
+
+## Security
+
+- Multiple independent audits of the Diamond, facets, and Composer onchain VM
+- $1,000,000 USD bug bounty program
+- Real-time contract monitoring
+- Non-custodial — users keep control of their funds
+- Open-source smart contracts
+
+Details: https://docs.li.fi/introduction/learn-more/security-and-audits
+
+---
+
+## Use Cases
+
+1. Cross-chain payments — accept payments in any token on any chain
+2. DEX aggregation — best swap rates across all DEXs
+3. Bridge aggregation — optimal cross-chain transfers
+4. Yield discovery + one-click deposits via Earn + Composer
+5. Gas abstraction — pay gas in any token
+6. Intent execution via the solver marketplace
+7. Portfolio rebalancing across chains
+8. Cross-chain NFT purchases
+9. Wallet swap/bridge functionality
+10. AI agents executing on-chain transfers
+
+---
+
+## Resources
+
+### Documentation
+- Main docs: https://docs.li.fi
+- API reference: https://docs.li.fi/api-reference/introduction
+- SDK guide: https://docs.li.fi/sdk/overview
+- Widget guide: https://docs.li.fi/widget/overview
+- Composer: https://docs.li.fi/composer/overview
+- Earn: https://docs.li.fi/earn/overview
+- Intents: https://docs.li.fi/lifi-intents/introduction
+- Agents: https://docs.li.fi/agents/overview
+- MCP Server: https://docs.li.fi/mcp-server/overview
+- CLI: https://docs.li.fi/cli/overview
+- FAQs: https://docs.li.fi/faqs/fees-monetization
+
+### NPM packages
+- SDK: https://www.npmjs.com/package/@lifi/sdk
+- Widget: https://www.npmjs.com/package/@lifi/widget
+- Types: https://www.npmjs.com/package/@lifi/types
+- CLI: https://www.npmjs.com/package/@lifi/cli
+
+### Tools
+- Widget Playground: https://playground.li.fi
+- Transaction Explorer: https://explorer.li.fi
+- Solver UI (Intents): https://intents.li.fi
+
+### Support
+- Website: https://li.fi
+- Discord: https://discord.gg/lifi
+- Twitter: https://twitter.com/lifiprotocol
+- Email: support@li.fi
+- Help Center: https://lifihelp.zendesk.com
+
+### Legal
+- Terms: https://li.fi/legal/terms-and-conditions/
+- Privacy: https://li.fi/legal/privacy-policy/
+
+---
+
+## Changelog
+
+Track updates to LI.FI products:
+
+- Monthly Updates: https://docs.li.fi/changelog/monthly-updates
+- Backend / Core: https://docs.li.fi/changelog/backend
+- SDK: https://docs.li.fi/changelog/sdk
+- Widget: https://docs.li.fi/changelog/widget
+- Partner Portal: https://docs.li.fi/changelog/partner-portal
+
+Notable recent releases:
+- **April 2026:** SDK v4 and Widget v4 released. TRON, Arbitrum Nova, Mayan v2, Bitget added. Earn API base path changed (`/v1/earn/...` → `/v1/...`). FeeForwarder migration in the Partner Portal.
+- **March 2026:** Token-level fee withdrawal in Partner Portal; Composer expansions.
+
+---
+
+## Sitemap
+
+Every documentation page, organized by section. URLs are root-relative; prepend `https://docs.li.fi`.
+
+### Overview / Introduction
+- /introduction/introduction
+- /introduction/product-stack
+- /introduction/learn-more/security-and-audits
+- /introduction/integrating-lifi/monetizing-integration
+- /introduction/integrating-lifi/partnership-opportunities
+- /introduction/integrating-lifi/fee-forwarder
+- /introduction/chains
+- /introduction/tools
+- /introduction/solana-ecosystem
+- /introduction/lifi-architecture/system-overview
+- /introduction/lifi-architecture/smart-contract-overview
+- /introduction/lifi-architecture/smart-contract-addresses
+- /introduction/lifi-architecture/solana-overview
+- /introduction/lifi-architecture/bitcoin-overview
+- /introduction/lifi-architecture/sui-overview
+- /introduction/user-flows-and-examples/end-to-end-example
+- /introduction/user-flows-and-examples/requesting-route-fetching-quote
+- /introduction/user-flows-and-examples/difference-between-quote-and-route
+- /introduction/user-flows-and-examples/permit2-approval-flow
+- /introduction/user-flows-and-examples/lifi-composer
+- /introduction/user-flows-and-examples/messaging-flow
+- /introduction/user-flows-and-examples/solana-tx-execution
+- /introduction/user-flows-and-examples/bitcoin-tx-example
+- /introduction/user-flows-and-examples/status-tracking
+- /introduction/learn-more/getting-integrated-by-lifi
+- /introduction/learn-more/for-dexs
+- /introduction/learn-more/for-bridges
+
+### API Reference
+- /api-reference/introduction
+- /api-reference/openapi-spec
+- /api-reference/rate-limits
+- /api-reference/error-codes
+- /api-reference/get-a-quote-for-a-token-transfer
+- /api-reference/get-a-quote-for-a-token-transfer-1
+- /api-reference/perform-multiple-contract-calls-across-blockchains-beta
+- /api-reference/advanced/get-a-set-of-routes-for-a-request-that-describes-a-transfer-of-tokens
+- /api-reference/advanced/populate-a-step-with-transaction-data
+- /api-reference/parse-transaction-call-data-beta
+- /api-reference/check-the-status-of-a-cross-chain-transfer
+- /api-reference/get-information-about-all-currently-supported-chains
+- /api-reference/fetch-all-known-tokens
+- /api-reference/fetch-information-about-a-token
+- /api-reference/get-available-bridges-and-exchanges
+- /api-reference/returns-all-possible-connections-based-on-a-from-or-tochain
+- /api-reference/gas/get-gas-price-for-the-specified-chainid
+- /api-reference/gas/get-gas-prices-for-enabled-chains
+- /api-reference/get-a-gas-suggestion-for-the-specified-chain
+- /api-reference/get-status-information-about-a-lifuel-transaction
+- /api-reference/in-case-a-transaction-was-missed-by-a-relayer-this-endpoint-can-be-used-to-force-a-tx-to-be-re-fetched
+- /api-reference/get-transaction-request-for-withdrawing-collected-integrators-fees-by-chain
+- /api-reference/get-integrators-collected-fees-data-for-all-supported-chains
+- /api-reference/get-the-total-amount-of-a-token-received-on-a-specific-chain-for-cross-chain-transfers
+- /api-reference/get-a-list-of-filtered-transfers
+- /api-reference/get-a-paginated-list-of-filtered-transfers
+- /api-reference/presets/overview
+- /api-reference/presets/stablecoin
+
+### SDK
+- /sdk/overview
+- /sdk/installing-the-sdk
+- /sdk/configure-sdk
+- /sdk/configure-sdk-providers
+- /sdk/monetize-sdk
+- /sdk/request-routes
+- /sdk/execute-routes
+- /sdk/chains-tools
+- /sdk/token-management
+- /sdk/testing-integration
+- /sdk/migrate-v2-to-v3
+
+### Widget
+- /widget/overview
+- /widget/install-widget
+- /widget/select-widget-variants
+- /widget/configure-widget
+- /widget/customize-widget
+- /widget/monetize-widget
+- /widget/widget-events
+- /widget/wallet-management
+- /widget/internationalization
+- /widget/widget-api-reference
+- /widget/compatibility
+- /widget/react-router-compatibility
+- /widget/polyfill-requirements
+- /widget/migrate-from-v2-to-v3
+
+### Composer
+- /composer/overview
+- /composer/quickstart
+- /composer/how-it-works
+- /composer/guides/api-integration
+- /composer/guides/sdk-integration
+- /composer/guides/widget-integration
+- /composer/guides/cross-chain-compose
+- /composer/guides/withdrawals
+- /composer/recipes/vault-deposits
+- /composer/reference/supported-protocols
+- /composer/reference/api-parameters
+- /composer/reference/error-handling
+- /composer/reference/limitations
+- /composer/for-protocols/integration-guide
+- /composer/for-protocols/technical-requirements
+
+### Earn
+- /earn/overview
+- /earn/quickstart
+- /earn/how-it-works
+- /earn/guides/api-integration
+- /earn/guides/supported-protocols
+- /earn/recipes/discover-and-deposit
+
+### Intents — Integrators
+- /lifi-intents/introduction
+- /lifi-intents/authentication
+- /lifi-intents/quickstart
+- /lifi-intents/intents-api/api-overview
+- /lifi-intents/intents-api/request-quote
+- /lifi-intents/intents-api/create-and-submit
+- /lifi-intents/intents-api/compact-orders
+- /lifi-intents/intents-api/track-status
+
+### Intents — For Solvers
+- /lifi-intents/for-solvers/api-overview
+- /lifi-intents/for-solvers/intro
+- /lifi-intents/for-solvers/orderflow
+- /lifi-intents/for-solvers/quoting
+- /lifi-intents/for-solvers/auctions
+- /lifi-intents/for-solvers/filling-orders
+- /lifi-intents/for-solvers/settlement
+- /lifi-intents/for-solvers/reputation
+- /lifi-intents/for-solvers/testing-integration
+
+### Intents — MCP Server
+- /lifi-intents/mcp-server/overview
+- /lifi-intents/mcp-server/installation
+- /lifi-intents/mcp-server/tools
+- /lifi-intents/mcp-server/examples
+
+### Intents — Architecture
+- /lifi-intents/architecture/overview
+- /lifi-intents/architecture/settlement
+- /lifi-intents/architecture/oracle-systems
+- /lifi-intents/architecture/open-contributions
+
+### Intents — Knowledge Base
+- /lifi-intents/knowledge-database/resource-locks
+- /lifi-intents/knowledge-database/bitcoin-primer
+- /lifi-intents/knowledge-database/glossary
+
+### For Agents
+- /agents/overview
+- /agents/concepts
+- /agents/quick-start/five-call-recipe
+- /agents/quick-start/decision-tables
+- /agents/quick-start/code-samples
+- /agents/workflows/approvals
+- /agents/workflows/execution
+- /agents/workflows/status-recovery
+- /agents/workflows/partial-completion
+- /agents/reference/endpoint-specs
+- /agents/reference/error-playbooks
+- /agents/reference/schemas
+
+### MCP Server (general)
+- /mcp-server/overview
+- /mcp-server/installation
+- /mcp-server/tools
+- /mcp-server/examples
+
+### CLI
+- /cli/overview
+- /cli/installation
+- /cli/commands
+- /cli/examples
+
+### Guides
+- /guides/gas-subsidy
+- /guides/latency
+- /guides/debug-failed-transactions
+- /guides/intermediate-tokens
+
+### FAQs
+- /faqs/fees-monetization
+- /faqs/integration
+- /faqs/route-availability
+- /faqs/slippage-price-impact
+- /faqs/token-support
+- /faqs/troubleshooting
+
+### Changelog
+- /changelog/monthly-updates
+- /changelog/backend
+- /changelog/sdk
+- /changelog/widget
+- /changelog/partner-portal

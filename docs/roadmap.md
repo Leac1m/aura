@@ -37,4 +37,5 @@ Aura: Your Intent, Solana's Execution. Bridging voice to on-chain action with ag
 ---
 
 ## Status Updates
+- **2026-05-08**: Resolved Android build failure by downgrading dependencies and cleaning prebuild. Gradle build is now successful.
 *See `docs/context.json` for granular state tracking.*

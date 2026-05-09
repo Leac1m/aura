@@ -1,0 +1,70 @@
+{
+  "type": "client",
+  "name": "trigger_solana_action",
+  "description": "Orchestrates a Solana DeFi action based on user intent captured from voice.",
+  "disable_interruptions": false,
+  "force_pre_tool_speech": false,
+  "pre_tool_speech": "auto",
+  "tool_call_sound": null,
+  "tool_call_sound_behavior": "auto",
+  "tool_error_handling_mode": "auto",
+  "execution_mode": "immediate",
+  "assignments": [],
+  "expects_response": false,
+  "response_timeout_secs": 1,
+  "parameters": [
+    {
+      "id": "action",
+      "type": "string",
+      "value_type": "llm_prompt",
+      "description": "The DeFi action type: swap, stake, send, or bridge.",
+      "dynamic_variable": "",
+      "constant_value": "",
+      "enum": [
+        "swap",
+        "stake",
+        "send",
+        "bridge"
+      ],
+      "is_system_provided": false,
+      "required": true
+    },
+    {
+      "id": "amount",
+      "type": "number",
+      "value_type": "llm_prompt",
+      "description": "The numerical amount of the asset to use.",
+      "dynamic_variable": "",
+      "constant_value": "",
+      "enum": null,
+      "is_system_provided": false,
+      "required": true
+    },
+    {
+      "id": "asset",
+      "type": "string",
+      "value_type": "llm_prompt",
+      "description": "The source asset symbol (e.g. SOL, USDC, JitoSOL).",
+      "dynamic_variable": "",
+      "constant_value": "",
+      "enum": null,
+      "is_system_provided": false,
+      "required": true
+    },
+    {
+      "id": "to_asset",
+      "type": "string",
+      "value_type": "llm_prompt",
+      "description": "The destination asset symbol for swaps or bridges.",
+      "dynamic_variable": "",
+      "constant_value": "",
+      "enum": null,
+      "is_system_provided": false,
+      "required": false
+    }
+  ],
+  "dynamic_variables": {
+    "dynamic_variable_placeholders": {}
+  },
+  "response_mocks": []
+}

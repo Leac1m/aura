@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:3000'; // Change to your local IP for physical device testing
+const BASE_URL = "http://10.1.1.58:3000" //'http://localhost:3000'; // Change to your local IP for physical device testing
 
 export async function fetchIntent(text: string) {
   const response = await fetch(`${BASE_URL}/api/intent?text=${encodeURIComponent(text)}`);

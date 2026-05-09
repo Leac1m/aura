@@ -4,14 +4,14 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
     "@aura/types": "^1.0.0",
     "@project-serum/anchor": "^0.26.0",
-    "@react-native-async-storage/async-storage": "^3.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.8",
     "@solana-mobile/mobile-wallet-adapter-protocol-web3js": "^2.2.8",
     "@solana/kit": "^6.9.0",
@@ -21,13 +21,13 @@
     "buffer": "^6.0.3",
     "expo": "~54.0.33",
     "expo-av": "^16.0.8",
-    "expo-speech": "^55.0.13",
+    "expo-speech": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "fast-text-encoding": "^1.0.6",
     "lucide-react-native": "^1.14.0",
     "react": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-get-random-values": "^2.0.0"
+    "react-native-get-random-values": "~1.11.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
