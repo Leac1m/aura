@@ -2,7 +2,16 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
 
 export async function fetchSignedUrl() {
   const response = await fetch(`${BASE_URL}/api/agent/signed-url`);
-  if (!response.ok) throw new Error('Failed to fetch signed URL');
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const errorData = await response.json();
+      detail = errorData.error || errorData.details || '';
+    } catch {
+      detail = await response.text();
+    }
+    throw new Error(`Failed to fetch signed URL (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 

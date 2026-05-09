@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Mic, MicOff, Wallet as WalletIcon, Shield, Send, RefreshCw, CheckCircle2 } from 'lucide-react-native';
 import { WalletProvider, useWallet } from './src/hooks/useWallet';
 import { useAuraConversation } from './src/hooks/useAuraConversation';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol';
 import { ConversationProvider } from "@elevenlabs/react-native";
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 function AuraHome() {
   const { walletAddress, loading: walletLoading, connectWallet, disconnectWallet } = useWallet();
@@ -166,11 +167,13 @@ function AuraHome() {
 
 export default function App() {
   return (
-    <WalletProvider>
-      <ConversationProvider>
-        <AuraHome />
-      </ConversationProvider>
-    </WalletProvider>
+    <SafeAreaProvider>
+      <WalletProvider>
+        <ConversationProvider>
+          <AuraHome />
+        </ConversationProvider>
+      </WalletProvider>
+    </SafeAreaProvider>
   );
 }
 
