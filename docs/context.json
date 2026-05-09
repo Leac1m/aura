@@ -78,6 +78,16 @@
       "id": "signed_url_fix",
       "description": "Fixed nested signed URL response and bypassed failing ElevenLabs SDK fetch with direct API call",
       "status": "completed"
+    },
+    {
+      "id": "bll_risk_engine",
+      "description": "Implemented BLL Risk & Routing Engine with dynamic slippage (Static Tiers) and LI.FI integration",
+      "status": "completed"
+    },
+    {
+      "id": "architecture_documented",
+      "description": "Documented Aura Voice-to-Intent Pipeline architecture in docs/architecture.md",
+      "status": "completed"
     }
   ],
   "technical_state": {

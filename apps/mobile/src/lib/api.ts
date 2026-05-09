@@ -1,4 +1,4 @@
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000").trim();
 
 export async function fetchSignedUrl() {
   const response = await fetch(`${BASE_URL}/api/agent/signed-url`);

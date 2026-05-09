@@ -1,27 +1,28 @@
 import { NextResponse } from 'next/server'
+import axios from 'axios'
 
 const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 1000; // 1 second
+const INITIAL_RETRY_DELAY = 2000; // 2 seconds
 const TIMEOUT_MS = 30000; // 30 seconds
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES): Promise<any> {
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
+    const response = await axios.get(url, {
+      headers: { 'xi-api-key': apiKey },
+      timeout: TIMEOUT_MS,
+      // Force IPv4 to avoid potential IPv6/DNS issues
+      family: 4 
     });
-    
-    clearTimeout(id);
-    return response;
+    return response.data;
   } catch (error: any) {
-    if (retries > 0 && (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('fetch failed'))) {
+    const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout');
+    const isNetworkError = error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN' || error.message.includes('Network Error');
+    
+    if (retries > 0 && (isTimeout || isNetworkError)) {
       const delay = INITIAL_RETRY_DELAY * (MAX_RETRIES - retries + 1);
-      console.warn(`Fetch failed, retrying in ${delay}ms... (${retries} retries left)`);
+      console.warn(`ElevenLabs connection failed (${error.code || error.message}), retrying in ${delay}ms... (${retries} retries left)`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return fetchWithRetry(url, options, retries - 1);
+      return fetchWithRetry(url, apiKey, retries - 1);
     }
     throw error;
   }
@@ -36,33 +37,20 @@ export async function GET() {
   }
 
   try {
-    const response = await fetchWithRetry(
+    const data = await fetchWithRetry(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${agentId}`,
-      {
-        method: 'GET',
-        headers: {
-          'xi-api-key': apiKey,
-        },
-        cache: 'no-store', // Ensure we don't cache signed URLs
-      }
+      apiKey
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('ElevenLabs API Error:', errorText);
-      return NextResponse.json(
-        { error: `ElevenLabs API error (${response.status}): ${errorText}` },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    const signedUrl = data.signed_url;
-
-    return NextResponse.json({ signedUrl });
+    return NextResponse.json({ signedUrl: data.signed_url });
   } catch (error: any) {
-    console.error('Error generating signed URL:', error);
-    const isTimeout = error.name === 'AbortError' || error.code === 'UND_ERR_CONNECT_TIMEOUT';
+    console.error('Error generating signed URL:', {
+      message: error.message,
+      code: error.code,
+      response: error.response?.data
+    });
+
+    const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout');
     return NextResponse.json(
       { error: isTimeout ? 'Connection to ElevenLabs timed out. Please check your network.' : (error.message || 'Failed to generate signed URL') },
       { status: isTimeout ? 504 : 500 }
