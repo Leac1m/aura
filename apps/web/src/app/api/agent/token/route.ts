@@ -37,14 +37,12 @@ export async function GET() {
   }
 
   try {
-    // WebRTC token endpoint for ElevenLabs Conversational AI
     const data = await fetchWithRetry(
-      `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${agentId}`,
+      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
       apiKey
     );
 
-    // Return the token as conversationToken to match the startSession parameter
-    return NextResponse.json({ conversationToken: data.token });
+    return NextResponse.json({ signedUrl: data.signed_url });
   } catch (error: any) {
     console.error('Error fetching conversation token:', {
       message: error.message,

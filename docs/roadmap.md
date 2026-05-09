@@ -34,6 +34,14 @@ Aura: Your Intent, Solana's Execution. Bridging voice to on-chain action with ag
 - [x] UI/UX Polishing and error handling.
 - [x] Documentation for deployment and environment setup.
 
+## Phase 5: Web Client Implementation (Completed)
+**Goal:** Build a dashboard-style web interface with wallet connection and voice interaction.
+- [x] Scaffold Solana Framework Kit integration in `apps/web`.
+- [x] Implement full-screen Landing Page with Wallet Connect.
+- [x] Implement Demo Dashboard inspired by voice-agent dashboard design.
+- [x] Integrate ElevenLabs Web SDK for voice sessions.
+- [x] Polish UI with Tailwind CSS and Framer Motion.
+
 ---
 
 ## Status Updates
