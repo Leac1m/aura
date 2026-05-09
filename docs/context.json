@@ -65,15 +65,15 @@
       "status": "completed"
     },
     {
-      "id": "lifi_real_integration",
-      "description": "Integrated real LI.FI API for optimized Solana routing",
+      "id": "mobile_refactor_completed",
+      "description": "Refactored mobile app with persistent wallet auth, modular hooks, and real LI.FI execution",
       "status": "completed"
     }
   ],
   "technical_state": {
     "backend": "Next.js App Router with ElevenLabs SDK (Signed URLs) and LI.FI (Real SVM Routing)",
     "on_chain": "Anchor program implemented and tested",
-    "mobile": "Expo app with ElevenLabs Conversation SDK, SMS/MWA, and LI.FI integration",
+    "mobile": "Expo app with ElevenLabs Conversation SDK, persistent MWA auth, and real LI.FI execution logic",
     "monorepo": "npm workspaces with @aura/types shared package"
   }
 }

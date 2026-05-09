@@ -1,7 +1,11 @@
-import 'react-native-get-random-values';
-import 'buffer';
+import { install } from 'react-native-quick-crypto';
+install();
+
 import { Buffer } from 'buffer';
 global.Buffer = Buffer;
+
+import process from 'process';
+global.process = process;
 
 // Polyfill DOMException for web-centric SDKs like ElevenLabs
 if (typeof global.DOMException === 'undefined') {
@@ -11,6 +15,15 @@ if (typeof global.DOMException === 'undefined') {
       this.name = name;
     }
   };
+}
+
+// Additional polyfills for web SDKs
+import { TextEncoder, TextDecoder } from 'fast-text-encoding';
+if (typeof global.TextEncoder === 'undefined') {
+  (global as any).TextEncoder = TextEncoder;
+}
+if (typeof global.TextDecoder === 'undefined') {
+  (global as any).TextDecoder = TextDecoder;
 }
 
 import { registerRootComponent } from 'expo';
