@@ -2,7 +2,7 @@
   "project_name": "Aura",
   "current_phase": 7,
   "last_updated": "2026-05-10",
-  "status": "Implementing X402 Payment Gateway & Subscription",
+  "status": "Mirroring DeFi Actions & Subscriptions to Mobile",
   "milestones": [
     {
       "id": "roadmap_created",
@@ -121,7 +121,12 @@
     },
     {
       "id": "x402_subscription_model",
-      "description": "Implementing X402 Payment Gateway and on-chain 30-day subscription model for voice agent",
+      "description": "Implemented X402 Payment Gateway and on-chain 30-day subscription model for voice agent in Web Client",
+      "status": "completed"
+    },
+    {
+      "id": "mobile_feature_mirroring",
+      "description": "Mirroring Send, Swap, and Subscription implementations to the React Native mobile app",
       "status": "in_progress"
     }
   ],

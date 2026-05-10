@@ -1,7 +1,14 @@
 const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000").trim();
 
-export async function fetchConversationToken() {
-  const response = await fetch(`${BASE_URL}/api/agent/token`);
+export async function fetchConversationToken(walletAddress?: string) {
+  const url = walletAddress ? `${BASE_URL}/api/agent/token?address=${walletAddress}` : `${BASE_URL}/api/agent/token`;
+  const response = await fetch(url);
+  
+  if (response.status === 402) {
+    const errorData = await response.json();
+    return { status: 402, ...errorData };
+  }
+  
   if (!response.ok) {
     let detail = '';
     try {
@@ -12,7 +19,9 @@ export async function fetchConversationToken() {
     }
     throw new Error(`Failed to fetch conversation token (${response.status}): ${detail}`);
   }
-  return response.json();
+  
+  const data = await response.json();
+  return { status: 200, ...data };
 }
 
 export async function fetchIntent(text: string) {

@@ -21,12 +21,16 @@ Aura: Your Intent, Solana's Execution. Bridging voice to on-chain action with ag
 - [x] Deploy Anchor program to Localhost/Devnet for integration testing.
 - [x] Refine Next.js API logic to handle X402 payment headers.
 
-## Phase 3: Mobile Client & SMS Integration (Current)
-**Goal:** Build the user-facing mobile experience.
+## Phase 3: Mobile Client & SMS Integration (Active)
+**Goal:** Build the user-facing mobile experience and mirror core DeFi features.
 - [x] Scaffold Expo application with Solana Mobile Stack.
 - [x] Implement Mobile Wallet Adapter (MWA) for transaction signing.
 - [x] Connect Voice/ElevenLabs STT capture to the Next.js API.
 - [x] Implement X402 client-side payment logic for premium skills.
+- [ ] Mirror Solana "Send" feature (SOL/SPL) to mobile client.
+- [ ] Mirror LI.FI "Swap" integration to mobile client.
+- [ ] Implement X402 Subscription gating and Upgrade UI in mobile app.
+- [ ] Implement manual test UI toggle (Voice vs. Manual) on mobile.
 
 ## Phase 4: Integration & Polish (Completed)
 **Goal:** End-to-end testing and production readiness.
