@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWalletConnection } from '@solana/react-hooks';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,13 @@ import { motion } from 'framer-motion';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { connect, connectors } = useWalletConnection();
+  const { connect, connectors, connected } = useWalletConnection();
+
+  useEffect(() => {
+    if (connected) {
+      router.push('/demo');
+    }
+  }, [connected, router]);
 
   const handleConnect = () => {
     // If we have connectors, just pick the first one for simplicity or show a modal.
