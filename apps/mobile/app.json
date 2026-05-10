@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Aura needs access to your microphone to capture voice intents."
-      }
+      },
+      "bundleIdentifier": "com.leac1m.mobile"
     },
     "android": {
       "adaptiveIcon": {

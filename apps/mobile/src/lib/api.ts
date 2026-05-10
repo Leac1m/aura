@@ -1,7 +1,14 @@
 const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000").trim();
 
-export async function fetchSignedUrl() {
-  const response = await fetch(`${BASE_URL}/api/agent/signed-url`);
+export async function fetchConversationToken(walletAddress?: string) {
+  const url = walletAddress ? `${BASE_URL}/api/agent/token?address=${walletAddress}` : `${BASE_URL}/api/agent/token`;
+  const response = await fetch(url);
+  
+  if (response.status === 402) {
+    const errorData = await response.json();
+    return { status: 402, ...errorData };
+  }
+  
   if (!response.ok) {
     let detail = '';
     try {
@@ -10,9 +17,11 @@ export async function fetchSignedUrl() {
     } catch {
       detail = await response.text();
     }
-    throw new Error(`Failed to fetch signed URL (${response.status}): ${detail}`);
+    throw new Error(`Failed to fetch conversation token (${response.status}): ${detail}`);
   }
-  return response.json();
+  
+  const data = await response.json();
+  return { status: 200, ...data };
 }
 
 export async function fetchIntent(text: string) {

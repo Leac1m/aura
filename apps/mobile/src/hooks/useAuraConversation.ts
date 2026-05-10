@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useConversation } from "@elevenlabs/react-native";
-import { fetchSignedUrl, fetchRoute } from '../lib/api';
+import { fetchConversationToken, fetchRoute } from '../lib/api';
 
 interface AuraIntent {
   action: string;
@@ -10,7 +10,7 @@ interface AuraIntent {
   to_asset?: string;
 }
 
-export function useAuraConversation(walletAddress: string | null) {
+export function useAuraConversation(walletAddress: string | null, onRequiresSubscription?: () => void) {
   const [status, setStatus] = useState('Welcome to Aura');
   const [currentRoute, setCurrentRoute] = useState<any>(null);
   const [currentIntent, setCurrentIntent] = useState<AuraIntent | null>(null);
@@ -68,8 +68,25 @@ export function useAuraConversation(walletAddress: string | null) {
     setStatus('Initializing Aura...');
 
     try {
-      const { signedUrl } = await fetchSignedUrl();
-      await conversation.startSession({ signedUrl });
+      const response = await fetchConversationToken(walletAddress);
+      
+      if (response.status === 402) {
+        setStatus('Subscription required');
+        onRequiresSubscription?.();
+        return;
+      }
+      
+      const { conversationToken, signedUrl } = response;
+      
+      if (conversationToken) {
+        console.log("Starting session with WebRTC token");
+        await conversation.startSession({ conversationToken });
+      } else if (signedUrl) {
+        console.log("Starting session with WebSocket URL (fallback)");
+        await conversation.startSession({ url: signedUrl } as any);
+      } else {
+        throw new Error("No connection credentials received from server");
+      }
     } catch (error: any) {
       console.error("Start Session Error:", error);
       Alert.alert('Initialization Error', error.message);
@@ -77,7 +94,7 @@ export function useAuraConversation(walletAddress: string | null) {
     } finally {
       setIsProcessing(false);
     }
-  }, [walletAddress, conversation]);
+  }, [walletAddress, conversation, onRequiresSubscription]);
 
   const stopSession = useCallback(async () => {
     await conversation.endSession();

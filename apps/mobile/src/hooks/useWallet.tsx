@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { Alert } from 'react-native';
 import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Buffer } from 'buffer';
+import { PublicKey } from '@solana/web3.js';
 
 const APP_IDENTITY = {
   name: 'Aura',
@@ -17,6 +19,7 @@ interface WalletContextType {
   loading: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
+  signAndSendTransactions: (payloads: string[]) => Promise<string[]>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -33,7 +36,18 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
         
         if (storedAddress && storedToken) {
-          setWalletAddress(storedAddress);
+          try {
+            // Check if it's an old Base64 stored address and convert it, otherwise use as-is
+            if (storedAddress.endsWith('=') || storedAddress.includes('+') || storedAddress.includes('/')) {
+              const base58Address = new PublicKey(Buffer.from(storedAddress, 'base64')).toBase58();
+              setWalletAddress(base58Address);
+              await AsyncStorage.setItem(WALLET_ADDRESS_KEY, base58Address);
+            } else {
+              setWalletAddress(storedAddress);
+            }
+          } catch (e) {
+            setWalletAddress(storedAddress);
+          }
         }
       } catch (error) {
         console.error('Failed to load wallet data:', error);
@@ -72,7 +86,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           });
         }
         
-        const address = authorizationResult.accounts[0].address;
+        const rawAddress = authorizationResult.accounts[0].address;
+        
+        // MWA returns address as a base64 encoded byte array string
+        // We must convert it to a standard base58 Solana PublicKey string
+        const addressBytes = Buffer.from(rawAddress, 'base64');
+        const address = new PublicKey(addressBytes).toBase58();
+        
         const authToken = authorizationResult.auth_token;
         
         setWalletAddress(address);
@@ -97,8 +117,41 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
   }, []);
 
+  const signAndSendTransactions = useCallback(async (payloads: string[]) => {
+    const storedToken = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    if (!storedToken) throw new Error("Wallet not connected");
+    
+    let signatures: string[] = [];
+    await transact(async (wallet) => {
+      try {
+        await wallet.reauthorize({
+          identity: APP_IDENTITY,
+          auth_token: storedToken,
+        });
+      } catch (e) {
+        console.log('Reauthorization failed during sign, falling back to authorize');
+        const authResult = await wallet.authorize({
+          identity: APP_IDENTITY,
+          chain: 'solana:devnet',
+        });
+        
+        const rawAddress = authResult.accounts[0].address;
+        const addressBytes = Buffer.from(rawAddress, 'base64');
+        const newAddress = new PublicKey(addressBytes).toBase58();
+        
+        setWalletAddress(newAddress);
+        await AsyncStorage.setItem(WALLET_ADDRESS_KEY, newAddress);
+        await AsyncStorage.setItem(AUTH_TOKEN_KEY, authResult.auth_token);
+      }
+      
+      const result = await wallet.signAndSendTransactions({ payloads });
+      signatures = result.signatures;
+    });
+    return signatures;
+  }, []);
+
   return (
-    <WalletContext.Provider value={{ walletAddress, loading, connectWallet, disconnectWallet }}>
+    <WalletContext.Provider value={{ walletAddress, loading, connectWallet, disconnectWallet, signAndSendTransactions }}>
       {children}
     </WalletContext.Provider>
   );
