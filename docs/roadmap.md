@@ -42,8 +42,17 @@ Aura: Your Intent, Solana's Execution. Bridging voice to on-chain action with ag
 - [x] Integrate ElevenLabs Web SDK for voice sessions.
 - [x] Polish UI with Tailwind CSS and Framer Motion.
 
+## Phase 6: Action Execution & Full Orchestration (Active)
+**Goal:** Implement real on-chain execution for all orchestrated intents.
+- [ ] Implement Solana "Send" feature for SOL and SPL tokens.
+- [ ] Implement manual test UI for direct action execution.
+- [ ] Implement LI.FI integration for "Swap" action.
+- [ ] Implement Stake/Bridge logic via LI.FI or direct program interaction.
+- [ ] End-to-end validation of Voice -> Intent -> Signature -> On-Chain.
+
 ---
 
 ## Status Updates
+- **2026-05-10**: Starting implementation of the Send feature and manual testing UI in the web client.
 - **2026-05-08**: Resolved Android build failure by downgrading dependencies and cleaning prebuild. Gradle build is now successful.
 *See `docs/context.json` for granular state tracking.*

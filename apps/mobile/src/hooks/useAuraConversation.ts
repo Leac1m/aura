@@ -68,8 +68,8 @@ export function useAuraConversation(walletAddress: string | null) {
     setStatus('Initializing Aura...');
 
     try {
-      const { conversationToken } = await fetchConversationToken();
-      await conversation.startSession({ conversationToken });
+      const { signedUrl } = await fetchConversationToken();
+      await conversation.startSession({ signedUrl });
     } catch (error: any) {
       console.error("Start Session Error:", error);
       Alert.alert('Initialization Error', error.message);

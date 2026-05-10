@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useWalletConnection } from '@solana/react-hooks';
 import { Button } from '@/components/ui/button';
@@ -9,13 +9,7 @@ import { motion } from 'framer-motion';
 
 export default function LandingPage() {
   const router = useRouter();
-  const { wallet, connect, connectors } = useWalletConnection();
-
-  // useEffect(() => {
-  //   if (wallet) {
-  //     router.push('/demo');
-  //   }
-  // }, [wallet, router]);
+  const { connect, connectors } = useWalletConnection();
 
   const handleConnect = () => {
     // If we have connectors, just pick the first one for simplicity or show a modal.
@@ -52,7 +46,7 @@ export default function LandingPage() {
           className="text-6xl md:text-8xl font-black tracking-tight mb-8 leading-[0.9]"
         >
           YOUR INTENT. <br />
-          <span className="text-primary">SOLANA'S EXECUTION.</span>
+          <span className="text-primary">SOLANA&apos;S EXECUTION.</span>
         </motion.h1>
 
         <motion.p

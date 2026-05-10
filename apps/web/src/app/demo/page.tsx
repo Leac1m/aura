@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWalletConnection } from '@solana/react-hooks';
 import { useConversation } from '@elevenlabs/react';
+import { toAddress, lamportsFromSol } from '@solana/client';
+import { solanaClient } from '../providers';
 import { VoiceVisualizer } from '@/components/VoiceVisualizer';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
   History, 
   Settings, 
@@ -15,7 +18,6 @@ import {
   Wallet,
   CheckCircle2,
   RefreshCw,
-  MoreVertical,
   ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +34,13 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
+interface Intent {
+  action: string;
+  amount: number;
+  asset: string;
+  destination?: string;
+}
+
 const MOCK_HISTORY = [
   { id: 1, title: 'Send 1 SOL to Bob', status: 'confirmed', time: '2m ago' },
   { id: 2, title: 'Swap 500 USDC for SOL', status: 'confirmed', time: '1h ago' },
@@ -43,7 +52,91 @@ export default function DemoPage() {
   const router = useRouter();
   const { wallet, disconnect } = useWalletConnection();
   const [history] = useState(MOCK_HISTORY);
-  const [currentIntent, setCurrentIntent] = useState<any>(null);
+  const [currentIntent, setCurrentIntent] = useState<Intent | null>(null);
+
+  // Manual Action State
+  const [manualAsset, setManualAsset] = useState('SOL');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualDestination, setManualDestination] = useState('');
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  const executeIntent = async (intent: Intent) => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setIsExecuting(true);
+      console.log('Executing Intent:', intent);
+      
+      const destination = intent.destination || manualDestination;
+      if (!destination) {
+        alert('Please provide a destination address');
+        setIsExecuting(false);
+        return;
+      }
+
+      let signature;
+      if (intent.asset.toUpperCase() === 'SOL') {
+        signature = await solanaClient.solTransfer.sendTransfer({
+          amount: lamportsFromSol(intent.amount),
+          authority: wallet,
+          destination: toAddress(destination),
+        });
+      } else {
+        // Common mints for Devnet/Mainnet
+        const mints: Record<string, { address: string, decimals: number }> = {
+          'USDC': { 
+            address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet
+            decimals: 6 
+          },
+          'DEVUSDC': { 
+            address: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYJJ1qZ6qc4n', // Devnet
+            decimals: 6 
+          },
+          'JITOSOL': {
+            address: 'J1toso9baSuLDD18akMHLv9tdEYcyfVTSEHd9k686v1',
+            decimals: 9
+          }
+        };
+
+        const assetKey = intent.asset.toUpperCase();
+        const mintInfo = mints[assetKey];
+        
+        const mintAddress = mintInfo?.address || intent.asset;
+        const decimals = mintInfo?.decimals || 9; // Default to 9
+        const amountBigInt = BigInt(Math.floor(intent.amount * Math.pow(10, decimals)));
+
+        signature = await solanaClient.splToken({ mint: toAddress(mintAddress) }).sendTransfer({
+          amount: amountBigInt,
+          amountInBaseUnits: true,
+          authority: wallet,
+          destinationOwner: toAddress(destination),
+        });
+      }
+
+      console.log('Transaction Signature:', signature);
+      alert(`Success! Transaction confirmed: ${signature}`);
+      setCurrentIntent(null);
+    } catch (error: unknown) {
+      console.error('Execution Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Execution Failed: ${errorMessage}`);
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
+  const handleManualExecute = () => {
+    const intent: Intent = {
+      action: 'send',
+      asset: manualAsset,
+      amount: parseFloat(manualAmount),
+      destination: manualDestination
+    };
+    executeIntent(intent);
+  };
 
   const conversation = useConversation({
     onConnect: () => console.log('Connected to ElevenLabs'),
@@ -51,7 +144,7 @@ export default function DemoPage() {
     onMessage: (message) => console.log('Message:', message),
     onError: (error) => console.error('ElevenLabs Error:', error),
     clientTools: {
-      trigger_solana_action: async (params: any) => {
+      trigger_solana_action: async (params: Intent) => {
         console.log('Action Triggered:', params);
         setCurrentIntent(params);
         return `Orchestrated ${params.action} for ${params.amount} ${params.asset}. Ready for execution.`;
@@ -101,22 +194,73 @@ export default function DemoPage() {
               </Button>
             </div>
           </SidebarHeader>
-          <SidebarContent className="p-4">
-            <SidebarMenu>
-              {history.map((item) => (
-                <SidebarMenuItem key={item.id} className="mb-2">
-                  <SidebarMenuButton className="h-auto p-4 flex flex-col items-start gap-1 rounded-xl bg-background border border-border/50 hover:border-primary/50 transition-all">
-                    <span className="font-bold text-sm">{item.title}</span>
-                    <div className="flex items-center justify-between w-full">
-                      <Badge variant="outline" className="text-[10px] uppercase font-black px-1.5 py-0">
-                        {item.status}
-                      </Badge>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">{item.time}</span>
-                    </div>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+          <SidebarContent className="p-4 space-y-8">
+            <section>
+              <div className="flex items-center gap-2 mb-4 px-2">
+                <History size={16} className="text-muted-foreground" />
+                <span className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">History</span>
+              </div>
+              <SidebarMenu>
+                {history.map((item) => (
+                  <SidebarMenuItem key={item.id} className="mb-2">
+                    <SidebarMenuButton className="h-auto p-4 flex flex-col items-start gap-1 rounded-xl bg-background border border-border/50 hover:border-primary/50 transition-all">
+                      <span className="font-bold text-sm">{item.title}</span>
+                      <div className="flex items-center justify-between w-full">
+                        <Badge variant="outline" className="text-[10px] uppercase font-black px-1.5 py-0">
+                          {item.status}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold">{item.time}</span>
+                      </div>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </section>
+
+            <section className="pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2 mb-4 px-2">
+                <Zap size={16} className="text-primary" />
+                <span className="font-bold text-[10px] uppercase tracking-widest text-primary">Manual Action Test</span>
+              </div>
+              <div className="space-y-4 px-2">
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Asset</span>
+                  <Input 
+                    value={manualAsset} 
+                    onChange={(e) => setManualAsset(e.target.value)}
+                    placeholder="e.g. SOL, USDC"
+                    className="h-9 text-xs rounded-lg bg-background border-border/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
+                  <Input 
+                    type="number"
+                    value={manualAmount} 
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    placeholder="0.0"
+                    className="h-9 text-xs rounded-lg bg-background border-border/50"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Destination</span>
+                  <Input 
+                    value={manualDestination} 
+                    onChange={(e) => setManualDestination(e.target.value)}
+                    placeholder="Solana Address"
+                    className="h-9 text-xs rounded-lg bg-background border-border/50"
+                  />
+                </div>
+                <Button 
+                  onClick={handleManualExecute} 
+                  disabled={isExecuting || !manualAmount || !manualDestination}
+                  className="w-full h-10 rounded-xl font-bold uppercase tracking-widest text-[10px] mt-2 shadow-lg shadow-primary/10"
+                >
+                  {isExecuting ? <RefreshCw className="animate-spin mr-2" size={14} /> : <Zap size={14} className="mr-2" />}
+                  Test Send
+                </Button>
+              </div>
+            </section>
           </SidebarContent>
           <SidebarFooter className="p-6 border-t border-border/50">
             <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={() => router.push('/')}>
@@ -190,13 +334,19 @@ export default function DemoPage() {
                           <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.amount} {currentIntent.asset}</span>
                         </div>
                         <div className="pt-6 border-t">
-                          <Button className="w-full h-14 rounded-2xl text-lg font-black uppercase tracking-widest shadow-xl shadow-primary/20">
+                          <Button 
+                            className="w-full h-14 rounded-2xl text-lg font-black uppercase tracking-widest shadow-xl shadow-primary/20"
+                            onClick={() => executeIntent(currentIntent)}
+                            disabled={isExecuting}
+                          >
+                            {isExecuting ? <RefreshCw className="animate-spin mr-2" size={20} /> : null}
                             Confirm & Execute
                           </Button>
                           <Button 
                             variant="ghost" 
                             className="w-full mt-2 font-bold text-muted-foreground uppercase text-xs tracking-widest"
                             onClick={() => setCurrentIntent(null)}
+                            disabled={isExecuting}
                           >
                             Cancel
                           </Button>
@@ -222,11 +372,11 @@ export default function DemoPage() {
                       {isListening ? 'Speak your intent to Aura' : 'Tap the microphone to start'}
                     </p>
                     <div className="flex items-center gap-4 justify-center">
-                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: 'Swap 1 SOL for USDC'">
-                        "Swap 1 SOL for USDC"
+                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: &apos;Swap 1 SOL for USDC&apos;">
+                        &quot;Swap 1 SOL for USDC&quot;
                       </Badge>
-                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: 'Send 0.1 SOL to Bob'">
-                        "Send 0.1 SOL to Bob"
+                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: &apos;Send 0.1 SOL to Bob&apos;">
+                        &quot;Send 0.1 SOL to Bob&quot;
                       </Badge>
                     </div>
                   </div>

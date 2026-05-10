@@ -1,8 +1,8 @@
 {
   "project_name": "Aura",
-  "current_phase": 5,
-  "last_updated": "2026-05-09",
-  "status": "Web Client Integration - Complete",
+  "current_phase": 6,
+  "last_updated": "2026-05-10",
+  "status": "Implementing Action Execution (Send)",
   "milestones": [
     {
       "id": "roadmap_created",
@@ -103,6 +103,16 @@
       "id": "web_client_implementation",
       "description": "Implemented full Landing Page and Demo Dashboard with Solana Framework Kit and ElevenLabs",
       "status": "completed"
+    },
+    {
+      "id": "elevenlabs_websocket_fix",
+      "description": "Resolved ElevenLabs 'v1 RTC path not found' connection error in web and mobile clients by migrating from WebRTC conversation tokens to secure WebSocket signed URLs",
+      "status": "completed"
+    },
+    {
+      "id": "send_feature_implementation",
+      "description": "Implementing Solana Send feature for SOL/SPL tokens with manual UI integration",
+      "status": "in_progress"
     }
   ],
   "technical_state": {

@@ -9,7 +9,6 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=apps/web\" \"npm run start --workspace=apps/mobile\"",
     "validator": "solana-test-validator --reset",
     "test": "npm run test --workspaces",
     "build": "npm run build --workspaces",
