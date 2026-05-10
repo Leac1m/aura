@@ -15,14 +15,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   History, 
-  Settings, 
   Zap, 
   ArrowLeft, 
-  MessageSquare, 
   Wallet,
-  CheckCircle2,
   RefreshCw,
-  ExternalLink
+  ChevronRight,
+  TrendingUp,
+  CreditCard,
+  Layers,
+  Bell,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -53,6 +55,11 @@ const MOCK_HISTORY = [
   { id: 4, title: 'Send 0.5 SOL to Alice', status: 'confirmed', time: 'Yesterday' },
 ];
 
+const MOCK_PORTFOLIO = [
+  { id: 'sol', name: 'Solana', ticker: 'SOL', amount: '45.2', value: '$6,200.00', change: '+2.4%', color: 'bg-indigo-500' },
+  { id: 'usdc', name: 'USD Coin', ticker: 'USDC', amount: '45.2', value: '$45.20', change: '0.0%', color: 'bg-blue-500' },
+];
+
 export default function DemoPage() {
   const router = useRouter();
   const { wallet, disconnect } = useWalletConnection();
@@ -80,14 +87,13 @@ export default function DemoPage() {
         process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
       );
       
-      const program = new anchor.Program(AURA_ESCROW_IDL as any, { connection } as anchor.Provider);
+      const program = new anchor.Program(AURA_ESCROW_IDL as anchor.Idl, { connection } as anchor.Provider);
 
       const [escrowPda] = anchor.web3.PublicKey.findProgramAddressSync(
         [Buffer.from('escrow'), new anchor.web3.PublicKey(wallet.account.address).toBuffer()],
         program.programId
       );
 
-      // Valid treasury for demo (Aura Fee Recipient)
       const treasury = new anchor.web3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
       const instruction = await program.methods
@@ -109,17 +115,16 @@ export default function DemoPage() {
 
       const txBytes = tx.serialize({ verifySignatures: false });
       const v2Transaction = getTransactionDecoder().decode(txBytes);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const signature = await wallet.sendTransaction(v2Transaction as any);
+      const signature = await wallet.sendTransaction(v2Transaction as never);
 
       console.log('Subscription Payment Signature:', signature);
       alert('Subscription active! You can now use Aura Premium.');
       setShowUpgrade(false);
-      // Wait a bit for chain to update
       setTimeout(() => startSession(), 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Subscription Error:', error);
-      alert(`Payment failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Payment failed: ${errorMessage}`);
     } finally {
       setIsSubscribing(false);
     }
@@ -145,8 +150,9 @@ export default function DemoPage() {
 
       const { signedUrl } = await response.json();
       await conversation.startSession({ signedUrl });
-      } catch (error: any) {      console.error('Session Error:', error);
-      alert(error.message);
+      } catch (error: unknown) {      console.error('Session Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(errorMessage);
     }
   };
 
@@ -176,27 +182,16 @@ export default function DemoPage() {
             destination: toAddress(destination),
           });
         } else {
-          // Common mints for Devnet/Mainnet
           const mints: Record<string, { address: string, decimals: number }> = {
-            'USDC': { 
-              address: 'EPjFWdd5AufqSSqeN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet
-              decimals: 6 
-            },
-            'DEVUSDC': { 
-              address: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYJJ1qZ6qc4n', // Devnet
-              decimals: 6 
-            },
-            'JITOSOL': {
-              address: 'J1toso9baSuLDD18akMHLv9tdEYcyfVTSEHd9k686v1',
-              decimals: 9
-            }
+            'USDC': { address: 'EPjFWdd5AufqSSqeN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6 },
+            'DEVUSDC': { address: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYJJ1qZ6qc4n', decimals: 6 },
+            'JITOSOL': { address: 'J1toso9baSuLDD18akMHLv9tdEYcyfVTSEHd9k686v1', decimals: 9 }
           };
 
           const assetKey = intent.asset.toUpperCase();
           const mintInfo = mints[assetKey];
-          
           const mintAddress = mintInfo?.address || intent.asset;
-          const decimals = mintInfo?.decimals || 9; // Default to 9
+          const decimals = mintInfo?.decimals || 9;
           const amountBigInt = BigInt(Math.floor(intent.amount * Math.pow(10, decimals)));
 
           signature = await solanaClient.splToken({ mint: toAddress(mintAddress) }).sendTransfer({
@@ -214,7 +209,6 @@ export default function DemoPage() {
           return;
         }
 
-        console.log('Fetching LI.FI Quote...');
         const quoteResponse = await fetch('/api/route', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -233,21 +227,12 @@ export default function DemoPage() {
         }
 
         const quote = await quoteResponse.json();
-        console.log('LI.FI Quote Received:', quote);
+        if (!quote.transactionRequest?.data) throw new Error('LI.FI did not return a transaction to sign');
 
-        if (!quote.transactionRequest?.data) {
-          throw new Error('LI.FI did not return a transaction to sign');
-        }
-
-        // Execute via Wallet Session
-        if (!wallet.sendTransaction) {
-          throw new Error('Your connected wallet does not support sending transactions directly');
-        }
-        
-        // LI.FI returns the transaction as a base64 string in the `data` property for Solana
         const wireBytes = getBase64Encoder().encode(quote.transactionRequest.data);
         const transaction = getTransactionDecoder().decode(wireBytes);
         
+        if (!wallet.sendTransaction) throw new Error('Wallet does not support sendTransaction');
         signature = await wallet.sendTransaction(transaction as never);
       }
 
@@ -278,7 +263,7 @@ export default function DemoPage() {
     onConnect: () => console.log('Connected to ElevenLabs'),
     onDisconnect: () => console.log('Disconnected from ElevenLabs'),
     onMessage: (message) => console.log('Message:', message),
-    onError: (error) => console.error('ElevenLabs Error:', error),
+    onError: (error: unknown) => console.error('ElevenLabs Error:', error),
     clientTools: {
       trigger_solana_action: async (params: Intent) => {
         console.log('Action Triggered:', params);
@@ -299,49 +284,48 @@ export default function DemoPage() {
     }
   };
 
-  // Redirect if no wallet (optional, user can still see demo)
-  // useEffect(() => {
-  //   if (!wallet) router.push('/');
-  // }, [wallet, router]);
-
   return (
     <SidebarProvider>
-      <div className="flex h-screen w-full bg-background overflow-hidden">
+      <div className="flex h-screen w-full bg-background overflow-hidden relative selection:bg-cyan/30 selection:text-cyan">
+        {/* Ambient Background Glow */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-cyan/5 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-cyan/5 rounded-full blur-[100px] pointer-events-none" />
+
         <UpgradeModal 
           isOpen={showUpgrade} 
           onClose={() => setShowUpgrade(false)} 
           onSubscribe={handlePaySubscription}
           isSubscribing={isSubscribing}
         />
+        
         {/* Left Sidebar: History */}
-        <Sidebar className="border-r border-border/50 bg-muted/30">
-          <SidebarHeader className="p-6 border-b border-border/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History size={20} className="text-muted-foreground" />
-                <span className="font-bold text-sm uppercase tracking-widest">History</span>
+        <Sidebar className="border-r border-cyan/5 bg-void/50 backdrop-blur-xl">
+          <SidebarHeader className="p-8 border-b border-cyan/5">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-cyan rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(0,229,255,0.3)]">
+                <Zap className="text-void" size={18} fill="currentColor" />
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Settings size={16} />
-              </Button>
+              <span className="font-black uppercase tracking-[0.2em] text-xs">Aura Bot</span>
             </div>
           </SidebarHeader>
-          <SidebarContent className="p-4 space-y-8">
+          <SidebarContent className="p-6 space-y-10">
             <section>
-              <div className="flex items-center gap-2 mb-4 px-2">
-                <History size={16} className="text-muted-foreground" />
-                <span className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">History</span>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <History size={14} className="text-muted-foreground" />
+                  <span className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Recent Actions</span>
+                </div>
               </div>
               <SidebarMenu>
                 {history.map((item) => (
-                  <SidebarMenuItem key={item.id} className="mb-2">
-                    <SidebarMenuButton className="h-auto p-4 flex flex-col items-start gap-1 rounded-xl bg-background border border-border/50 hover:border-primary/50 transition-all">
-                      <span className="font-bold text-sm">{item.title}</span>
+                  <SidebarMenuItem key={item.id} className="mb-3">
+                    <SidebarMenuButton className="h-auto p-4 flex flex-col items-start gap-2 rounded-2xl bg-white/[0.02] border border-cyan/5 hover:border-cyan/20 transition-all group">
+                      <span className="font-bold text-xs group-hover:text-cyan transition-colors">{item.title}</span>
                       <div className="flex items-center justify-between w-full">
-                        <Badge variant="outline" className="text-[10px] uppercase font-black px-1.5 py-0">
+                        <Badge className="bg-cyan/10 text-cyan border-none text-[8px] uppercase font-black px-2 py-0.5">
                           {item.status}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold">{item.time}</span>
+                        <span className="text-[9px] text-muted-foreground uppercase font-bold">{item.time}</span>
                       </div>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -349,85 +333,83 @@ export default function DemoPage() {
               </SidebarMenu>
             </section>
 
-            <section className="pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between mb-4 px-2">
+            <section className="pt-8 border-t border-cyan/5">
+              <div className="flex items-center justify-between mb-6 px-2">
                 <div className="flex items-center gap-2">
-                  <Zap size={16} className="text-primary" />
-                  <span className="font-bold text-[10px] uppercase tracking-widest text-primary">Manual Action Test</span>
+                  <Layers size={14} className="text-cyan" />
+                  <span className="font-black text-[10px] uppercase tracking-[0.2em] text-cyan">Manual Console</span>
                 </div>
-                <div className="flex bg-muted rounded-lg p-0.5">
+                <div className="flex bg-void rounded-full p-1 border border-cyan/10">
                   <button 
                     onClick={() => setManualAction('send')}
-                    className={`px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all ${manualAction === 'send' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                    className={`px-3 py-1 text-[8px] font-black uppercase rounded-full transition-all ${manualAction === 'send' ? 'bg-cyan text-void' : 'text-muted-foreground hover:text-white'}`}
                   >
                     Send
                   </button>
                   <button 
                     onClick={() => setManualAction('swap')}
-                    className={`px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all ${manualAction === 'swap' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                    className={`px-3 py-1 text-[8px] font-black uppercase rounded-full transition-all ${manualAction === 'swap' ? 'bg-cyan text-void' : 'text-muted-foreground hover:text-white'}`}
                   >
                     Swap
                   </button>
                 </div>
               </div>
               <div className="space-y-4 px-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
-                      {manualAction === 'swap' ? 'From Asset' : 'Asset'}
-                    </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Asset</span>
                     <Input 
                       value={manualAsset} 
                       onChange={(e) => setManualAsset(e.target.value)}
                       placeholder="SOL"
-                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                      className="h-10 text-[10px] rounded-xl bg-void border-cyan/5 focus:border-cyan/30 transition-all font-bold"
                     />
                   </div>
                   {manualAction === 'swap' ? (
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">To Asset</span>
+                    <div className="space-y-2">
+                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">To</span>
                       <Input 
                         value={manualToAsset} 
                         onChange={(e) => setManualToAsset(e.target.value)}
                         placeholder="USDC"
-                        className="h-9 text-xs rounded-lg bg-background border-border/50"
+                        className="h-10 text-[10px] rounded-xl bg-void border-cyan/5 focus:border-cyan/30 transition-all font-bold"
                       />
                     </div>
                   ) : (
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
+                    <div className="space-y-2">
+                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Amount</span>
                       <Input 
                         type="number"
                         value={manualAmount} 
                         onChange={(e) => setManualAmount(e.target.value)}
                         placeholder="0.0"
-                        className="h-9 text-xs rounded-lg bg-background border-border/50"
+                        className="h-10 text-[10px] rounded-xl bg-void border-cyan/5 focus:border-cyan/30 transition-all font-bold"
                       />
                     </div>
                   )}
                 </div>
 
                 {manualAction === 'swap' && (
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
+                  <div className="space-y-2">
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Amount</span>
                     <Input 
                       type="number"
                       value={manualAmount} 
                       onChange={(e) => setManualAmount(e.target.value)}
                       placeholder="0.0"
-                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                      className="h-10 text-[10px] rounded-xl bg-void border-cyan/5 focus:border-cyan/30 transition-all font-bold"
                     />
                   </div>
                 )}
 
                 {manualAction === 'send' && (
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Destination</span>
+                  <div className="space-y-2">
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Address</span>
                     <Input 
                       value={manualDestination} 
                       onChange={(e) => setManualDestination(e.target.value)}
-                      placeholder="Solana Address"
-                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                      placeholder="Recipient..."
+                      className="h-10 text-[10px] rounded-xl bg-void border-cyan/5 focus:border-cyan/30 transition-all font-bold"
                     />
                   </div>
                 )}
@@ -435,217 +417,181 @@ export default function DemoPage() {
                 <Button 
                   onClick={handleManualExecute} 
                   disabled={isExecuting || !manualAmount || (manualAction === 'send' && !manualDestination)}
-                  className="w-full h-10 rounded-xl font-bold uppercase tracking-widest text-[10px] mt-2 shadow-lg shadow-primary/10"
+                  className="w-full h-12 rounded-xl font-black uppercase tracking-[0.2em] text-[9px] mt-4 bg-cyan text-void shadow-[0_10px_20px_-5px_rgba(0,229,255,0.3)] hover:scale-[1.02] transition-all"
                 >
-                  {isExecuting ? <RefreshCw className="animate-spin mr-2" size={14} /> : <Zap size={14} className="mr-2" />}
-                  {manualAction === 'swap' ? 'Test Swap' : 'Test Send'}
+                  {isExecuting ? <RefreshCw className="animate-spin mr-2" size={12} /> : <Zap size={12} className="mr-2" fill="currentColor" />}
+                  {manualAction === 'swap' ? 'Execute Swap' : 'Execute Send'}
                 </Button>
               </div>
             </section>
           </SidebarContent>
-          <SidebarFooter className="p-6 border-t border-border/50">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={() => router.push('/')}>
-              <ArrowLeft size={16} className="mr-2" />
-              Back to Landing
+          <SidebarFooter className="p-8 border-t border-cyan/5">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-white group" onClick={() => router.push('/')}>
+              <ArrowLeft size={16} className="mr-3 group-hover:-translate-x-1 transition-transform" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Logout</span>
             </Button>
           </SidebarFooter>
         </Sidebar>
 
-        {/* Main Content: Visualizer */}
+        {/* Main Content */}
         <main className="flex-1 flex flex-col relative">
-          {/* Top Bar */}
-          <header className="h-20 flex items-center justify-between px-8 border-b border-border/50 backdrop-blur-md bg-background/50 sticky top-0 z-20">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <Zap className="text-primary-foreground" size={18} />
+          <header className="h-24 flex items-center justify-between px-10 border-b border-cyan/5 backdrop-blur-xl bg-void/50 sticky top-0 z-20">
+            <div className="flex items-center gap-8">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan mb-1">Status</span>
+                <div className="flex items-center gap-2">
+                   <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-cyan shadow-[0_0_10px_rgba(0,229,255,0.8)] animate-pulse' : 'bg-muted-foreground'}`} />
+                   <span className="font-bold text-sm uppercase tracking-tight">{isListening ? 'Aura Online' : 'Aura Standby'}</span>
                 </div>
-                <span className="font-black uppercase tracking-tighter">Aura Agent</span>
               </div>
-              <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 uppercase font-black text-[10px]">
-                Main Live 100%
-              </Badge>
+              <div className="hidden md:flex flex-col border-l border-cyan/10 pl-8">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-1">Network</span>
+                <span className="font-bold text-sm uppercase tracking-tight">Solana Devnet</span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-muted/50 rounded-full border border-border/50">
-                <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground'}`} />
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  {isListening ? 'Online' : 'Offline'}
-                </span>
-              </div>
-              
+            <div className="flex items-center gap-6">
               <Button 
-                variant={wallet ? "outline" : "default"} 
-                className="rounded-full font-bold text-xs uppercase tracking-widest border-2"
+                variant="outline" 
+                className="rounded-2xl border-cyan/20 bg-cyan/5 text-cyan hover:bg-cyan hover:text-void font-black text-[10px] uppercase tracking-[0.2em] h-12 px-8"
                 onClick={() => wallet ? disconnect() : router.push('/')}
               >
                 <Wallet size={14} className="mr-2" />
                 {wallet ? `${wallet.account.address.slice(0, 4)}...${wallet.account.address.slice(-4)}` : 'Connect'}
               </Button>
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
+                <Bell size={20} className="text-muted-foreground" />
+              </div>
             </div>
           </header>
 
-          <div className="flex-1 flex flex-col items-center justify-center p-8">
-            <AnimatePresence mode="wait">
-              {currentIntent ? (
-                <motion.div
-                  key="intent"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="w-full max-w-lg"
-                >
-                  <Card className="border-2 border-primary/20 shadow-2xl shadow-primary/10 rounded-3xl overflow-hidden">
-                    <div className="bg-primary p-6 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Zap className="text-primary-foreground" size={24} />
-                        <h2 className="text-xl font-black text-primary-foreground uppercase tracking-tight">Intent Orchestrated</h2>
-                      </div>
-                      <Badge variant="secondary" className="uppercase font-black">Ready</Badge>
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="max-w-5xl mx-auto p-10 space-y-12">
+              
+              {/* Portfolio Hero */}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
+                 <div className="glass-card p-10 flex flex-col justify-between">
+                    <div>
+                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground mb-4 block">Total Portfolio Value</span>
+                       <h2 className="text-6xl font-black tracking-tighter text-gradient">$6,245.20</h2>
                     </div>
-                    <CardContent className="p-8">
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">Action</span>
-                          <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.action}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">
-                            {currentIntent.action === 'swap' ? 'From Amount' : 'Amount'}
-                          </span>
-                          <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.amount} {currentIntent.asset}</span>
-                        </div>
-                        {currentIntent.action === 'swap' && currentIntent.to_asset && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">To Asset</span>
-                            <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.to_asset}</span>
-                          </div>
-                        )}
-                        <div className="pt-6 border-t">
-                          <Button 
-                            className="w-full h-14 rounded-2xl text-lg font-black uppercase tracking-widest shadow-xl shadow-primary/20"
-                            onClick={() => executeIntent(currentIntent)}
-                            disabled={isExecuting}
-                          >
-                            {isExecuting ? <RefreshCw className="animate-spin mr-2" size={20} /> : null}
-                            Confirm & Execute
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            className="w-full mt-2 font-bold text-muted-foreground uppercase text-xs tracking-widest"
-                            onClick={() => setCurrentIntent(null)}
-                            disabled={isExecuting}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="visualizer"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                >
-                  <VoiceVisualizer 
-                    isListening={isListening} 
-                    isSpeaking={isSpeaking} 
-                    onToggle={handleToggleSession}
-                  />
-                  <div className="mt-20 text-center">
-                    <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs mb-4">
-                      {isListening ? 'Speak your intent to Aura' : 'Tap the microphone to start'}
-                    </p>
-                    <div className="flex items-center gap-4 justify-center">
-                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: &apos;Swap 1 SOL for USDC&apos;">
-                        &quot;Swap 1 SOL for USDC&quot;
-                      </Badge>
-                      <Badge variant="outline" className="px-3 py-1 text-[10px] font-black uppercase opacity-50 italic cursor-help" title="Try: &apos;Send 0.1 SOL to Bob&apos;">
-                        &quot;Send 0.1 SOL to Bob&quot;
-                      </Badge>
+                    <div className="flex items-center gap-3 mt-8">
+                       <div className="px-3 py-1 rounded-full bg-cyan/10 border border-cyan/20 flex items-center gap-2">
+                          <TrendingUp size={12} className="text-cyan" />
+                          <span className="text-[10px] font-black text-cyan">+2.89%</span>
+                       </div>
+                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">vs Last 24h</span>
                     </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                 </div>
 
-          {/* Bottom Bar Controls */}
-          <div className="p-8 border-t border-border/50 bg-background/50 backdrop-blur-md flex items-center justify-center gap-4">
-            <Button variant="outline" className="rounded-xl font-bold uppercase tracking-widest text-xs h-12 px-6">
-              <Settings size={16} className="mr-2" />
-              Settings
-            </Button>
-            <Button variant="outline" className="rounded-xl font-bold uppercase tracking-widest text-xs h-12 px-6">
-              <MessageSquare size={16} className="mr-2" />
-              Voice Settings
-            </Button>
+                 <div className="glass-card p-10 flex items-center justify-center relative overflow-hidden group cursor-pointer" onClick={handleToggleSession}>
+                    <div className="absolute inset-0 bg-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                    <VoiceVisualizer 
+                      isListening={isListening} 
+                      isSpeaking={isSpeaking} 
+                      onToggle={handleToggleSession}
+                    />
+                    <div className="absolute bottom-8 text-center">
+                       <p className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan animate-pulse">
+                         {isListening ? 'Aura is listening...' : 'Tap to start voice intent'}
+                       </p>
+                    </div>
+                 </div>
+              </section>
+
+              {/* Portfolio List */}
+              <section>
+                 <div className="flex items-center justify-between mb-8 px-2">
+                    <h3 className="text-xl font-black uppercase tracking-tighter text-gradient">Your Assets</h3>
+                    <Button variant="ghost" className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground hover:text-cyan transition-colors">View All Assets <ChevronRight size={14} className="ml-1" /></Button>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {MOCK_PORTFOLIO.map(asset => (
+                       <div key={asset.id} className="glass-card p-8 flex items-center justify-between group cursor-pointer">
+                          <div className="flex items-center gap-5">
+                             <div className={`w-14 h-14 rounded-2xl ${asset.color} flex items-center justify-center shadow-lg`}>
+                                {asset.id === 'sol' ? <Zap size={24} fill="white" className="text-white" /> : <CreditCard size={24} className="text-white" />}
+                             </div>
+                             <div>
+                                <h4 className="font-black uppercase tracking-tight text-lg">{asset.name}</h4>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{asset.ticker}</span>
+                             </div>
+                          </div>
+                          <div className="text-right">
+                             <p className="font-black text-lg tracking-tight">{asset.amount} {asset.ticker}</p>
+                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{asset.value}</span>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              </section>
+
+              {/* Interaction Overlay (AnimatePresence for Intent) */}
+              <AnimatePresence>
+                {currentIntent && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-2xl bg-void/60"
+                  >
+                    <Card className="w-full max-w-lg border border-cyan/20 bg-void shadow-[0_0_100px_-10px_rgba(0,229,255,0.2)] rounded-[2.5rem] overflow-hidden">
+                      <div className="bg-cyan p-8 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-void rounded-2xl flex items-center justify-center">
+                            <Zap className="text-cyan" size={24} fill="currentColor" />
+                          </div>
+                          <h2 className="text-2xl font-black text-void uppercase tracking-tight">Intent Ready</h2>
+                        </div>
+                        <div className="w-10 h-10 rounded-full border-2 border-void/10 flex items-center justify-center">
+                           <Activity size={20} className="text-void animate-pulse" />
+                        </div>
+                      </div>
+                      <CardContent className="p-10 bg-void">
+                        <div className="space-y-8">
+                          <div className="flex items-center justify-between pb-6 border-b border-cyan/5">
+                            <span className="text-muted-foreground uppercase font-black text-[10px] tracking-[0.2em]">Action Type</span>
+                            <span className="font-black text-xl uppercase tracking-tight text-cyan">{currentIntent.action}</span>
+                          </div>
+                          <div className="flex items-center justify-between pb-6 border-b border-cyan/5">
+                            <span className="text-muted-foreground uppercase font-black text-[10px] tracking-[0.2em]">
+                              {currentIntent.action === 'swap' ? 'Pay Amount' : 'Amount'}
+                            </span>
+                            <span className="font-black text-xl uppercase tracking-tight">{currentIntent.amount} {currentIntent.asset}</span>
+                          </div>
+                          {currentIntent.action === 'swap' && currentIntent.to_asset && (
+                            <div className="flex items-center justify-between pb-6 border-b border-cyan/5">
+                              <span className="text-muted-foreground uppercase font-black text-[10px] tracking-[0.2em]">Receive Asset</span>
+                              <span className="font-black text-xl uppercase tracking-tight text-cyan">{currentIntent.to_asset}</span>
+                            </div>
+                          )}
+                          <div className="pt-6 space-y-4">
+                            <Button 
+                              className="w-full h-16 rounded-[1.5rem] text-md font-black uppercase tracking-[0.2em] bg-cyan text-void shadow-[0_15px_30px_-5px_rgba(0,229,255,0.3)] hover:scale-[1.02] transition-all"
+                              onClick={() => executeIntent(currentIntent)}
+                              disabled={isExecuting}
+                            >
+                              {isExecuting ? <RefreshCw className="animate-spin mr-2" size={20} /> : null}
+                              Sign & Execute
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              className="w-full h-12 font-black text-muted-foreground hover:text-white uppercase text-[10px] tracking-[0.3em]"
+                              onClick={() => setCurrentIntent(null)}
+                              disabled={isExecuting}
+                            >
+                              Cancel Action
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </main>
-
-        {/* Right Sidebar: Chat / Info */}
-        <aside className="hidden lg:flex w-80 border-l border-border/50 flex-col bg-muted/10">
-          <div className="p-6 border-b border-border/50">
-            <h3 className="font-black text-sm uppercase tracking-widest">Network Info</h3>
-          </div>
-          <div className="p-6 space-y-6 flex-1 overflow-y-auto">
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cluster</span>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl border border-border/50">
-                <span className="font-bold text-xs uppercase">Devnet</span>
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">LIFI Routing</span>
-              <div className="p-3 bg-background rounded-xl border border-border/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase">Slippage</span>
-                  <span className="text-[10px] font-black text-primary">0.5%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase">Speed</span>
-                  <span className="text-[10px] font-black text-primary">Turbo</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-border/50">
-               <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-4">Latest Transaction</span>
-               <Card className="border border-border/50 bg-background/50">
-                 <CardContent className="p-4 flex flex-col gap-3">
-                   <div className="flex items-center gap-2">
-                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                       <CheckCircle2 size={16} />
-                     </div>
-                     <span className="font-bold text-xs uppercase tracking-tight truncate">Swap SOL → USDC</span>
-                   </div>
-                   <Button variant="ghost" size="sm" className="w-full text-[10px] font-black uppercase tracking-widest h-8">
-                     View on Explorer
-                     <ExternalLink size={10} className="ml-1" />
-                   </Button>
-                 </CardContent>
-               </Card>
-            </div>
-          </div>
-          <div className="p-6 border-t border-border/50">
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="Type a message..." 
-                className="w-full h-12 bg-muted/50 rounded-xl px-4 text-sm font-medium border border-transparent focus:border-primary/50 outline-none transition-all pr-12"
-              />
-              <Button size="icon" variant="ghost" className="absolute right-1 top-1 h-10 w-10 text-primary">
-                <Zap size={18} fill="currentColor" />
-              </Button>
-            </div>
-          </div>
-        </aside>
       </div>
     </SidebarProvider>
   );

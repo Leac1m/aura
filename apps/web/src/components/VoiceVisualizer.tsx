@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, PhoneOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Mic, PhoneOff } from 'lucide-react';
 
 interface VoiceVisualizerProps {
   isListening: boolean;

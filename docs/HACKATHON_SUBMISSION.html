@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura Hackathon Submission</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h1 { color: #111; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h2 { color: #222; margin-top: 30px; }
+        h3 { color: #444; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: "JetBrains Mono", monospace; }
+        .badge { background: #6366f1; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; text-transform: uppercase; }
+        .section { background: #fafafa; border: 1px solid #eee; padding: 20px; border-radius: 12px; margin: 20px 0; }
+        .copy-button { background: #eee; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; float: right; }
+        .copy-button:hover { background: #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Aura: Your Intent, Solana's Execution</h1>
+    <p><span class="badge">DeFi Track</span> <span class="badge">Mobile Track</span> <span class="badge">AI Integration</span></p>
+
+    <div class="section">
+        <h2>1. Project Description</h2>
+        <p><strong>Tagline:</strong> The first voice-native agentic wallet bridging natural language to high-performance DeFi execution.</p>
+        <p><strong>The Problem:</strong> Mobile Web3 is broken by "click-fatigue." Swapping, bridging, or staking on the go requires navigating multiple complex UIs and signing a dozen transactions. Users shouldn't have to be DeFi experts to manage their assets; they should just be able to state their goal.</p>
+        <p><strong>The Solution:</strong> Aura is a mobile-first interface that replaces manual trading with <strong>Intent-Based Orchestration</strong>. Using a "Thin Client, Thick API" model, Aura converts natural voice commands into complex on-chain actions. Talk to Aura, and it handles the routing (via LI.FI), the security (via a custom Anchor Escrow), and the execution—all with a single user signature.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. Key Features</h2>
+        <ul>
+            <li><strong>Voice-to-Intent Pipeline:</strong> High-fidelity capture via ElevenLabs and reasoning via OpenAI/Anthropic to map vague goals ("Save my SOL") to technical actions ("Deposit into JitoSOL").</li>
+            <li><strong>Autonomous Routing:</strong> Integration with LI.FI for optimal cross-dex pathfinding and slippage protection.</li>
+            <li><strong>X402 Monetization:</strong> A novel payment protocol where advanced DeFi "Skills" (like MEV-protected routes) are gated behind micro-payments in SOL.</li>
+            <li><strong>Secure Delegation:</strong> An Anchor-based escrow program that creates personal PDAs for users, allowing the agent to execute within strict, user-defined guardrails.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>3. Technical Implementation</h2>
+        <p><strong>Frontend:</strong> React Native (Expo) with Solana Mobile Stack (SMS) and Mobile Wallet Adapter (MWA).</p>
+        <p><strong>On-Chain:</strong> Anchor program implementing <code>EscrowState</code> with time-bound subscription proofs and allowance guardrails.</p>
+        <p><strong>Infrastructure:</strong> Next.js App Router for the "Agent Brain," coordinating ElevenLabs (Voice), LLMs (Intent), and LI.FI (Routing).</p>
+    </div>
+
+    <div class="section">
+        <h2>4. Demo Video Script (3 Minutes)</h2>
+        <p><em>[0:00-0:30] Introduction</em>: "Meet Aura. Mobile Web3 is slow, but Aura makes it instant. We're moving from buttons and sliders to pure intent."</p>
+        <p><em>[0:30-1:30] The Voice Flow</em>: Show the user connecting a wallet and speaking: 'Swap 1 SOL for USDC and send it to Bob.' Show Aura's 'Brain' parsing the intent and finding the best LI.FI route.</p>
+        <p><em>[1:30-2:15] Security & X402</em>: 'Aura isn't just easy; it's secure and sustainable.' Show the X402 Upgrade Modal for premium skills and the single signature confirmation via Phantom.</p>
+        <p><em>[2:15-3:00] Vision</em>: 'Aura is a platform. Any developer can write a "Skill" and monetize it via X402. We're building the decentralized orchestration layer for the internet of value.'</p>
+    </div>
+
+    <div class="section">
+        <h2>5. Setup Instructions</h2>
+        <pre><code># 1. Clone the repo
+# 2. Run 'npm install' in root
+# 3. Web: cd apps/web && npm run dev
+# 4. Mobile: cd apps/mobile && npx expo start --tunnel</code></pre>
+    </div>
+</body>
+</html>

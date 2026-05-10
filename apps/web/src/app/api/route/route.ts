@@ -91,12 +91,12 @@ export async function POST(request: Request) {
       intent: body
     });
 
-  } catch (error: any) {
-    console.error('BLL Routing Error:', error.response?.data || error.message);
-    const errorDetails = error.response?.data || error.message;
+  } catch (error: unknown) {
+    const errorDetails = axios.isAxiosError(error) ? error.response?.data : (error instanceof Error ? error.message : 'Unknown error');
+    console.error('BLL Routing Error:', errorDetails);
     
     // Handle specific LI.FI errors as defined in architecture (e.g., no route)
-    if (error.response?.status === 404 || errorDetails?.message?.includes('No route')) {
+    if (axios.isAxiosError(error) && (error.response?.status === 404 || (error.response?.data as { message?: string })?.message?.includes('No route'))) {
       return NextResponse.json({ 
         error: 'Liquidity Crunch: No safe route found for this amount.',
         details: errorDetails

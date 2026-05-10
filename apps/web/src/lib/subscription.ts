@@ -1,4 +1,4 @@
-import { address, createSolanaRpc, createSolanaRpcSubscriptions, getAddressEncoder } from '@solana/kit';
+import { address, createSolanaRpc, getAddressEncoder } from '@solana/kit';
 import { AURA_ESCROW_IDL } from '@aura/types';
 
 const PROGRAM_ID = AURA_ESCROW_IDL.address;
