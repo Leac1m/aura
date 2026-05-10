@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert, TextInput, ScrollView, KeyboardAvoidingView, Platform, Modal } from 'react-native';
 import { Mic, MicOff, Wallet as WalletIcon, Shield, Send, RefreshCw, CheckCircle2, Zap, Crown, X, ArrowLeftRight, User } from 'lucide-react-native';
 import { WalletProvider, useWallet } from './src/hooks/useWallet';
@@ -85,9 +85,22 @@ function UpgradeModal({ isOpen, onClose, onSubscribe, isSubscribing }: any) {
   );
 }
 
+import { Audio } from 'expo-av';
+
 function AuraHome() {
   const { walletAddress, loading: walletLoading, connectWallet, disconnectWallet, signAndSendTransactions } = useWallet();
   
+  // Request Microphone Permissions
+  useEffect(() => {
+    async function getPermissions() {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Microphone Access', 'Please allow microphone access to use Aura Voice.');
+      }
+    }
+    getPermissions();
+  }, []);
+
   // Mode State
   const [mode, setMode] = useState<'voice' | 'manual'>('voice');
   

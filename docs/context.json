@@ -2,7 +2,7 @@
   "project_name": "Aura",
   "current_phase": 7,
   "last_updated": "2026-05-10",
-  "status": "Mirroring DeFi Actions & Subscriptions to Mobile",
+  "status": "Testing - X402 Payment Gate Disabled (Web)",
   "milestones": [
     {
       "id": "roadmap_created",
@@ -108,32 +108,12 @@
       "id": "elevenlabs_websocket_fix",
       "description": "Resolved ElevenLabs 'v1 RTC path not found' connection error in web and mobile clients by migrating from WebRTC conversation tokens to secure WebSocket signed URLs",
       "status": "completed"
-    },
-    {
-      "id": "send_feature_implementation",
-      "description": "Implemented Solana Send feature for SOL/SPL tokens with manual UI integration",
-      "status": "completed"
-    },
-    {
-      "id": "swap_feature_implementation",
-      "description": "Implemented LI.FI Swap integration for SOL/SPL tokens with manual UI integration",
-      "status": "completed"
-    },
-    {
-      "id": "x402_subscription_model",
-      "description": "Implemented X402 Payment Gateway and on-chain 30-day subscription model for voice agent in Web Client",
-      "status": "completed"
-    },
-    {
-      "id": "mobile_feature_mirroring",
-      "description": "Mirroring Send, Swap, and Subscription implementations to the React Native mobile app",
-      "status": "in_progress"
     }
   ],
   "technical_state": {
-    "backend": "Next.js App Router with X402 Subscription Guard and ElevenLabs SDK",
-    "on_chain": "Anchor program with pay_subscription (0.1 SOL) and time-bound proof logic",
-    "mobile": "Expo app with ElevenLabs Conversation SDK and MWA auth",
+    "backend": "Next.js App Router with ElevenLabs SDK (WebSocket) and LI.FI (Real SVM Routing)",
+    "on_chain": "Anchor program implemented and tested",
+    "mobile": "Expo app with ElevenLabs Conversation SDK, persistent MWA auth, and real LI.FI execution logic",
     "monorepo": "npm workspaces with @aura/types shared package"
   }
 }

@@ -76,8 +76,17 @@ export function useAuraConversation(walletAddress: string | null, onRequiresSubs
         return;
       }
       
-      const { signedUrl } = response;
-      await conversation.startSession({ signedUrl });
+      const { conversationToken, signedUrl } = response;
+      
+      if (conversationToken) {
+        console.log("Starting session with WebRTC token");
+        await conversation.startSession({ conversationToken });
+      } else if (signedUrl) {
+        console.log("Starting session with WebSocket URL (fallback)");
+        await conversation.startSession({ url: signedUrl } as any);
+      } else {
+        throw new Error("No connection credentials received from server");
+      }
     } catch (error: any) {
       console.error("Start Session Error:", error);
       Alert.alert('Initialization Error', error.message);

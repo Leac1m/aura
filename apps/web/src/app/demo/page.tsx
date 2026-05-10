@@ -139,14 +139,13 @@ export default function DemoPage() {
       }
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get session');
+       const errorData = await response.json();
+       throw new Error(errorData.error || 'Failed to get session');
       }
-      
+
       const { signedUrl } = await response.json();
       await conversation.startSession({ signedUrl });
-    } catch (error: any) {
-      console.error('Session Error:', error);
+      } catch (error: any) {      console.error('Session Error:', error);
       alert(error.message);
     }
   };

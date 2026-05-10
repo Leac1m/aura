@@ -41,7 +41,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'User wallet address required' }, { status: 400 });
   }
 
-  // 1. Check On-Chain Subscription
+  // 1. Check On-Chain Subscription (DISABLED FOR TESTING)
+  /*
   const subscription = await checkSubscription(userAddress, rpcUrl);
 
   if (!subscription.isActive) {
@@ -51,6 +52,7 @@ export async function GET(request: Request) {
       label: 'Aura 30-Day Premium Voice Subscription'
     });
   }
+  */
 
   // 2. Fetch ElevenLabs Token
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -61,14 +63,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await fetchWithRetry(
-      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-      apiKey
-    );
+    const [signedUrlData, tokenData] = await Promise.all([
+      fetchWithRetry(`https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`, apiKey),
+      fetchWithRetry(`https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${agentId}`, apiKey)
+    ]);
 
     return NextResponse.json({ 
-      signedUrl: data.signed_url,
-      subscription_expires: subscription.endsAt 
+      signedUrl: signedUrlData.signed_url,
+      conversationToken: tokenData.token,
+      subscription_expires: 0 
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
