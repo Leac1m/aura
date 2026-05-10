@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useWalletConnection } from '@solana/react-hooks';
 import { useConversation } from '@elevenlabs/react';
 import { toAddress, lamportsFromSol } from '@solana/client';
+import { getBase64Encoder, getTransactionDecoder } from '@solana/kit';
 import { solanaClient } from '../providers';
 import { VoiceVisualizer } from '@/components/VoiceVisualizer';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ interface Intent {
   action: string;
   amount: number;
   asset: string;
+  to_asset?: string;
   destination?: string;
 }
 
@@ -55,7 +57,9 @@ export default function DemoPage() {
   const [currentIntent, setCurrentIntent] = useState<Intent | null>(null);
 
   // Manual Action State
+  const [manualAction, setManualAction] = useState<'send' | 'swap'>('send');
   const [manualAsset, setManualAsset] = useState('SOL');
+  const [manualToAsset, setManualToAsset] = useState('USDC');
   const [manualAmount, setManualAmount] = useState('');
   const [manualDestination, setManualDestination] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
@@ -70,50 +74,95 @@ export default function DemoPage() {
       setIsExecuting(true);
       console.log('Executing Intent:', intent);
       
-      const destination = intent.destination || manualDestination;
-      if (!destination) {
-        alert('Please provide a destination address');
-        setIsExecuting(false);
-        return;
-      }
-
       let signature;
-      if (intent.asset.toUpperCase() === 'SOL') {
-        signature = await solanaClient.solTransfer.sendTransfer({
-          amount: lamportsFromSol(intent.amount),
-          authority: wallet,
-          destination: toAddress(destination),
-        });
-      } else {
-        // Common mints for Devnet/Mainnet
-        const mints: Record<string, { address: string, decimals: number }> = {
-          'USDC': { 
-            address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet
-            decimals: 6 
-          },
-          'DEVUSDC': { 
-            address: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYJJ1qZ6qc4n', // Devnet
-            decimals: 6 
-          },
-          'JITOSOL': {
-            address: 'J1toso9baSuLDD18akMHLv9tdEYcyfVTSEHd9k686v1',
-            decimals: 9
-          }
-        };
+      if (intent.action === 'send') {
+        const destination = intent.destination || manualDestination;
+        if (!destination) {
+          alert('Please provide a destination address');
+          setIsExecuting(false);
+          return;
+        }
 
-        const assetKey = intent.asset.toUpperCase();
-        const mintInfo = mints[assetKey];
+        if (intent.asset.toUpperCase() === 'SOL') {
+          signature = await solanaClient.solTransfer.sendTransfer({
+            amount: lamportsFromSol(intent.amount),
+            authority: wallet,
+            destination: toAddress(destination),
+          });
+        } else {
+          // Common mints for Devnet/Mainnet
+          const mints: Record<string, { address: string, decimals: number }> = {
+            'USDC': { 
+              address: 'EPjFWdd5AufqSSqeN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet
+              decimals: 6 
+            },
+            'DEVUSDC': { 
+              address: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYJJ1qZ6qc4n', // Devnet
+              decimals: 6 
+            },
+            'JITOSOL': {
+              address: 'J1toso9baSuLDD18akMHLv9tdEYcyfVTSEHd9k686v1',
+              decimals: 9
+            }
+          };
+
+          const assetKey = intent.asset.toUpperCase();
+          const mintInfo = mints[assetKey];
+          
+          const mintAddress = mintInfo?.address || intent.asset;
+          const decimals = mintInfo?.decimals || 9; // Default to 9
+          const amountBigInt = BigInt(Math.floor(intent.amount * Math.pow(10, decimals)));
+
+          signature = await solanaClient.splToken({ mint: toAddress(mintAddress) }).sendTransfer({
+            amount: amountBigInt,
+            amountInBaseUnits: true,
+            authority: wallet,
+            destinationOwner: toAddress(destination),
+          });
+        }
+      } else if (intent.action === 'swap') {
+        const toAsset = intent.to_asset || manualToAsset;
+        if (!toAsset) {
+          alert('Please provide a destination asset for swap');
+          setIsExecuting(false);
+          return;
+        }
+
+        console.log('Fetching LI.FI Quote...');
+        const quoteResponse = await fetch('/api/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'swap',
+            amount: intent.amount,
+            asset: intent.asset,
+            to_asset: toAsset,
+            from_address: wallet.account.address.toString()
+          })
+        });
+
+        if (!quoteResponse.ok) {
+          const errorData = await quoteResponse.json();
+          throw new Error(errorData.error || 'Failed to fetch swap route');
+        }
+
+        const quote = await quoteResponse.json();
+        console.log('LI.FI Quote Received:', quote);
+
+        if (!quote.transactionRequest?.data) {
+          throw new Error('LI.FI did not return a transaction to sign');
+        }
+
+        // Execute via Wallet Session
+        if (!wallet.sendTransaction) {
+          throw new Error('Your connected wallet does not support sending transactions directly');
+        }
         
-        const mintAddress = mintInfo?.address || intent.asset;
-        const decimals = mintInfo?.decimals || 9; // Default to 9
-        const amountBigInt = BigInt(Math.floor(intent.amount * Math.pow(10, decimals)));
-
-        signature = await solanaClient.splToken({ mint: toAddress(mintAddress) }).sendTransfer({
-          amount: amountBigInt,
-          amountInBaseUnits: true,
-          authority: wallet,
-          destinationOwner: toAddress(destination),
-        });
+        // LI.FI returns the transaction as a base64 string in the `data` property for Solana
+        const wireBytes = getBase64Encoder().encode(quote.transactionRequest.data);
+        const transaction = getTransactionDecoder().decode(wireBytes);
+        
+        signature = await wallet.sendTransaction(transaction as any);
       }
 
       console.log('Transaction Signature:', signature);
@@ -130,8 +179,9 @@ export default function DemoPage() {
 
   const handleManualExecute = () => {
     const intent: Intent = {
-      action: 'send',
+      action: manualAction,
       asset: manualAsset,
+      to_asset: manualToAsset,
       amount: parseFloat(manualAmount),
       destination: manualDestination
     };
@@ -218,46 +268,95 @@ export default function DemoPage() {
             </section>
 
             <section className="pt-4 border-t border-border/50">
-              <div className="flex items-center gap-2 mb-4 px-2">
-                <Zap size={16} className="text-primary" />
-                <span className="font-bold text-[10px] uppercase tracking-widest text-primary">Manual Action Test</span>
+              <div className="flex items-center justify-between mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  <Zap size={16} className="text-primary" />
+                  <span className="font-bold text-[10px] uppercase tracking-widest text-primary">Manual Action Test</span>
+                </div>
+                <div className="flex bg-muted rounded-lg p-0.5">
+                  <button 
+                    onClick={() => setManualAction('send')}
+                    className={`px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all ${manualAction === 'send' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  >
+                    Send
+                  </button>
+                  <button 
+                    onClick={() => setManualAction('swap')}
+                    className={`px-2 py-1 text-[9px] font-black uppercase rounded-md transition-all ${manualAction === 'swap' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  >
+                    Swap
+                  </button>
+                </div>
               </div>
               <div className="space-y-4 px-2">
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Asset</span>
-                  <Input 
-                    value={manualAsset} 
-                    onChange={(e) => setManualAsset(e.target.value)}
-                    placeholder="e.g. SOL, USDC"
-                    className="h-9 text-xs rounded-lg bg-background border-border/50"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                      {manualAction === 'swap' ? 'From Asset' : 'Asset'}
+                    </span>
+                    <Input 
+                      value={manualAsset} 
+                      onChange={(e) => setManualAsset(e.target.value)}
+                      placeholder="SOL"
+                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                    />
+                  </div>
+                  {manualAction === 'swap' ? (
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">To Asset</span>
+                      <Input 
+                        value={manualToAsset} 
+                        onChange={(e) => setManualToAsset(e.target.value)}
+                        placeholder="USDC"
+                        className="h-9 text-xs rounded-lg bg-background border-border/50"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
+                      <Input 
+                        type="number"
+                        value={manualAmount} 
+                        onChange={(e) => setManualAmount(e.target.value)}
+                        placeholder="0.0"
+                        className="h-9 text-xs rounded-lg bg-background border-border/50"
+                      />
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
-                  <Input 
-                    type="number"
-                    value={manualAmount} 
-                    onChange={(e) => setManualAmount(e.target.value)}
-                    placeholder="0.0"
-                    className="h-9 text-xs rounded-lg bg-background border-border/50"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Destination</span>
-                  <Input 
-                    value={manualDestination} 
-                    onChange={(e) => setManualDestination(e.target.value)}
-                    placeholder="Solana Address"
-                    className="h-9 text-xs rounded-lg bg-background border-border/50"
-                  />
-                </div>
+
+                {manualAction === 'swap' && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Amount</span>
+                    <Input 
+                      type="number"
+                      value={manualAmount} 
+                      onChange={(e) => setManualAmount(e.target.value)}
+                      placeholder="0.0"
+                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                    />
+                  </div>
+                )}
+
+                {manualAction === 'send' && (
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Destination</span>
+                    <Input 
+                      value={manualDestination} 
+                      onChange={(e) => setManualDestination(e.target.value)}
+                      placeholder="Solana Address"
+                      className="h-9 text-xs rounded-lg bg-background border-border/50"
+                    />
+                  </div>
+                )}
+
                 <Button 
                   onClick={handleManualExecute} 
-                  disabled={isExecuting || !manualAmount || !manualDestination}
+                  disabled={isExecuting || !manualAmount || (manualAction === 'send' && !manualDestination)}
                   className="w-full h-10 rounded-xl font-bold uppercase tracking-widest text-[10px] mt-2 shadow-lg shadow-primary/10"
                 >
                   {isExecuting ? <RefreshCw className="animate-spin mr-2" size={14} /> : <Zap size={14} className="mr-2" />}
-                  Test Send
+                  {manualAction === 'swap' ? 'Test Swap' : 'Test Send'}
                 </Button>
               </div>
             </section>
@@ -330,9 +429,17 @@ export default function DemoPage() {
                           <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.action}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">Amount</span>
+                          <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">
+                            {currentIntent.action === 'swap' ? 'From Amount' : 'Amount'}
+                          </span>
                           <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.amount} {currentIntent.asset}</span>
                         </div>
+                        {currentIntent.action === 'swap' && currentIntent.to_asset && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground uppercase font-black text-xs tracking-widest">To Asset</span>
+                            <span className="font-bold text-lg uppercase tracking-tight">{currentIntent.to_asset}</span>
+                          </div>
+                        )}
                         <div className="pt-6 border-t">
                           <Button 
                             className="w-full h-14 rounded-2xl text-lg font-black uppercase tracking-widest shadow-xl shadow-primary/20"

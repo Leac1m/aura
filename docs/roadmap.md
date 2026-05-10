@@ -44,9 +44,9 @@ Aura: Your Intent, Solana's Execution. Bridging voice to on-chain action with ag
 
 ## Phase 6: Action Execution & Full Orchestration (Active)
 **Goal:** Implement real on-chain execution for all orchestrated intents.
-- [ ] Implement Solana "Send" feature for SOL and SPL tokens.
-- [ ] Implement manual test UI for direct action execution.
-- [ ] Implement LI.FI integration for "Swap" action.
+- [x] Implement Solana "Send" feature for SOL and SPL tokens.
+- [x] Implement manual test UI for direct action execution.
+- [ ] Implement LI.FI integration for "Swap" action (In Progress).
 - [ ] Implement Stake/Bridge logic via LI.FI or direct program interaction.
 - [ ] End-to-end validation of Voice -> Intent -> Signature -> On-Chain.
 

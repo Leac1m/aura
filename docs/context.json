@@ -2,7 +2,7 @@
   "project_name": "Aura",
   "current_phase": 6,
   "last_updated": "2026-05-10",
-  "status": "Implementing Action Execution (Send)",
+  "status": "Implementing Action Execution (Swap via LI.FI)",
   "milestones": [
     {
       "id": "roadmap_created",
@@ -111,7 +111,12 @@
     },
     {
       "id": "send_feature_implementation",
-      "description": "Implementing Solana Send feature for SOL/SPL tokens with manual UI integration",
+      "description": "Implemented Solana Send feature for SOL/SPL tokens with manual UI integration",
+      "status": "completed"
+    },
+    {
+      "id": "swap_feature_implementation",
+      "description": "Implementing LI.FI Swap integration for SOL/SPL tokens with manual UI integration",
       "status": "in_progress"
     }
   ],
