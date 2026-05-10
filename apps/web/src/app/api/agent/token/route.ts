@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
-import { checkSubscription } from '@/lib/subscription'
-import { createX402Response } from '@/lib/x402'
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 2000;
 const TIMEOUT_MS = 30000;
 
-async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES): Promise<{ signed_url: string }> {
+interface ElevenLabsResponse {
+  signed_url?: string;
+  token?: string;
+}
+
+async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES): Promise<ElevenLabsResponse> {
   try {
     const response = await axios.get(url, {
       headers: { 'xi-api-key': apiKey },
@@ -35,7 +38,6 @@ async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const userAddress = searchParams.get('address');
-  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 
   if (!userAddress) {
     return NextResponse.json({ error: 'User wallet address required' }, { status: 400 });
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
 
   // 1. Check On-Chain Subscription (DISABLED FOR TESTING)
   /*
+  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
   const subscription = await checkSubscription(userAddress, rpcUrl);
 
   if (!subscription.isActive) {
