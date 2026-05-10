@@ -12,14 +12,10 @@ describe("aura-escrow", () => {
   const program = new anchor.Program(AURA_ESCROW_IDL as any, provider);
 
   it("Initializes a Delegation Escrow PDA", async () => {
-    console.log("Program ID:", program.programId.toBase58());
-    console.log("User Public Key:", user.publicKey.toBase58());
-
     const [escrowPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("escrow"), user.publicKey.toBuffer()],
       program.programId
     );
-    console.log("Escrow PDA:", escrowPda.toBase58());
 
     const maxSlippage = 50;
     const maxAllowance = new anchor.BN(1000000000);
@@ -35,30 +31,34 @@ describe("aura-escrow", () => {
 
     const escrowAccount: any = await program.account.escrowState.fetch(escrowPda);
     expect(escrowAccount.owner.toBase58()).to.equal(user.publicKey.toBase58());
-    expect(escrowAccount.maxSlippage).to.equal(maxSlippage);
-    expect(escrowAccount.maxAllowance.toString()).to.equal(maxAllowance.toString());
+    expect(escrowAccount.subscriptionEnd.toNumber()).to.equal(0);
   });
 
-  it("Updates guardrails", async () => {
+  it("Pays for a 30-day subscription", async () => {
     const [escrowPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("escrow"), user.publicKey.toBuffer()],
       program.programId
     );
 
-    const newSlippage = 100;
-    const newAllowance = new anchor.BN(2000000000);
+    const treasury = anchor.web3.Keypair.generate();
+    const initialTreasuryBalance = await provider.connection.getBalance(treasury.publicKey);
 
     await program.methods
-      .updateGuardrails(newSlippage, newAllowance)
+      .paySubscription()
       .accounts({
         escrow: escrowPda,
-        owner: user.publicKey,
         user: user.publicKey,
+        treasury: treasury.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .rpc();
 
+    const finalTreasuryBalance = await provider.connection.getBalance(treasury.publicKey);
+    expect(finalTreasuryBalance - initialTreasuryBalance).to.equal(100_000_000); // 0.1 SOL
+
     const escrowAccount: any = await program.account.escrowState.fetch(escrowPda);
-    expect(escrowAccount.maxSlippage).to.equal(newSlippage);
-    expect(escrowAccount.maxAllowance.toString()).to.equal(newAllowance.toString());
+    const now = Math.floor(Date.now() / 1000);
+    // Subscription should end in approximately 30 days
+    expect(escrowAccount.subscriptionEnd.toNumber()).to.be.greaterThan(now + 29 * 24 * 60 * 60);
   });
 });

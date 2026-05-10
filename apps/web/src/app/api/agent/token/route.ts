@@ -1,26 +1,30 @@
 import { NextResponse } from 'next/server'
 import axios from 'axios'
+import { checkSubscription } from '@/lib/subscription'
+import { createX402Response } from '@/lib/x402'
 
 const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 2000; // 2 seconds
-const TIMEOUT_MS = 30000; // 30 seconds
+const INITIAL_RETRY_DELAY = 2000;
+const TIMEOUT_MS = 30000;
 
-async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES): Promise<any> {
+async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES): Promise<{ signed_url: string }> {
   try {
     const response = await axios.get(url, {
       headers: { 'xi-api-key': apiKey },
       timeout: TIMEOUT_MS,
-      // Force IPv4 to avoid potential IPv6/DNS issues
       family: 4 
     });
     return response.data;
-  } catch (error: any) {
-    const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout');
-    const isNetworkError = error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN' || error.message.includes('Network Error');
+  } catch (error: unknown) {
+    const isAxiosError = axios.isAxiosError(error);
+    const errorCode = isAxiosError ? error.code : undefined;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    const isTimeout = errorCode === 'ECONNABORTED' || errorCode === 'ETIMEDOUT' || errorMessage.includes('timeout');
+    const isNetworkError = errorCode === 'ENOTFOUND' || errorCode === 'EAI_AGAIN' || errorMessage.includes('Network Error');
     
     if (retries > 0 && (isTimeout || isNetworkError)) {
       const delay = INITIAL_RETRY_DELAY * (MAX_RETRIES - retries + 1);
-      console.warn(`ElevenLabs connection failed (${error.code || error.message}), retrying in ${delay}ms... (${retries} retries left)`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return fetchWithRetry(url, apiKey, retries - 1);
     }
@@ -28,7 +32,27 @@ async function fetchWithRetry(url: string, apiKey: string, retries = MAX_RETRIES
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userAddress = searchParams.get('address');
+  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+
+  if (!userAddress) {
+    return NextResponse.json({ error: 'User wallet address required' }, { status: 400 });
+  }
+
+  // 1. Check On-Chain Subscription
+  const subscription = await checkSubscription(userAddress, rpcUrl);
+
+  if (!subscription.isActive) {
+    return createX402Response({
+      payment_address: 'AuraTreasuryAddress123', // This would be the treasury PDA in production
+      amount_lamports: 100_000_000, // 0.1 SOL
+      label: 'Aura 30-Day Premium Voice Subscription'
+    });
+  }
+
+  // 2. Fetch ElevenLabs Token
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const agentId = process.env.ELEVENLABS_AGENT_ID;
 
@@ -42,17 +66,19 @@ export async function GET() {
       apiKey
     );
 
-    return NextResponse.json({ signedUrl: data.signed_url });
-  } catch (error: any) {
-    console.error('Error fetching conversation token:', {
-      message: error.message,
-      code: error.code,
-      response: error.response?.data
+    return NextResponse.json({ 
+      signedUrl: data.signed_url,
+      subscription_expires: subscription.endsAt 
     });
-
-    const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout');
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const isAxiosError = axios.isAxiosError(error);
+    const isTimeout = isAxiosError && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT');
+    
+    console.error('Error fetching conversation token:', errorMessage);
+    
     return NextResponse.json(
-      { error: isTimeout ? 'Connection to ElevenLabs timed out. Please check your network.' : (error.message || 'Failed to fetch conversation token') },
+      { error: isTimeout ? 'Connection to ElevenLabs timed out.' : (errorMessage || 'Failed to fetch conversation token') },
       { status: isTimeout ? 504 : 500 }
     );
   }

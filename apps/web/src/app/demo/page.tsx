@@ -6,8 +6,11 @@ import { useWalletConnection } from '@solana/react-hooks';
 import { useConversation } from '@elevenlabs/react';
 import { toAddress, lamportsFromSol } from '@solana/client';
 import { getBase64Encoder, getTransactionDecoder } from '@solana/kit';
+import * as anchor from '@coral-xyz/anchor';
+import { AURA_ESCROW_IDL } from '@aura/types';
 import { solanaClient } from '../providers';
 import { VoiceVisualizer } from '@/components/VoiceVisualizer';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -63,6 +66,90 @@ export default function DemoPage() {
   const [manualAmount, setManualAmount] = useState('');
   const [manualDestination, setManualDestination] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // Upgrade Modal State
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+
+  const handlePaySubscription = async () => {
+    if (!wallet) return;
+
+    try {
+      setIsSubscribing(true);
+      const connection = new anchor.web3.Connection(
+        process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+      );
+      
+      const program = new anchor.Program(AURA_ESCROW_IDL as any, { connection } as anchor.Provider);
+
+      const [escrowPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from('escrow'), new anchor.web3.PublicKey(wallet.account.address).toBuffer()],
+        program.programId
+      );
+
+      // Valid treasury for demo (Aura Fee Recipient)
+      const treasury = new anchor.web3.PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
+      const instruction = await program.methods
+        .paySubscription()
+        .accounts({
+          escrow: escrowPda,
+          user: new anchor.web3.PublicKey(wallet.account.address),
+          treasury: treasury,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .instruction();
+
+      const { blockhash } = await connection.getLatestBlockhash();
+      const tx = new anchor.web3.Transaction().add(instruction);
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = new anchor.web3.PublicKey(wallet.account.address);
+
+      if (!wallet.sendTransaction) throw new Error('Wallet does not support sendTransaction');
+
+      const txBytes = tx.serialize({ verifySignatures: false });
+      const v2Transaction = getTransactionDecoder().decode(txBytes);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const signature = await wallet.sendTransaction(v2Transaction as any);
+
+      console.log('Subscription Payment Signature:', signature);
+      alert('Subscription active! You can now use Aura Premium.');
+      setShowUpgrade(false);
+      // Wait a bit for chain to update
+      setTimeout(() => startSession(), 2000);
+    } catch (error: any) {
+      console.error('Subscription Error:', error);
+      alert(`Payment failed: ${error.message}`);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  const startSession = async () => {
+    if (!wallet) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/agent/token?address=${wallet.account.address}`);
+      if (response.status === 402) {
+        setShowUpgrade(true);
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get session');
+      }
+      
+      const { signedUrl } = await response.json();
+      await conversation.startSession({ signedUrl });
+    } catch (error: any) {
+      console.error('Session Error:', error);
+      alert(error.message);
+    }
+  };
 
   const executeIntent = async (intent: Intent) => {
     if (!wallet) {
@@ -162,7 +249,7 @@ export default function DemoPage() {
         const wireBytes = getBase64Encoder().encode(quote.transactionRequest.data);
         const transaction = getTransactionDecoder().decode(wireBytes);
         
-        signature = await wallet.sendTransaction(transaction as any);
+        signature = await wallet.sendTransaction(transaction as never);
       }
 
       console.log('Transaction Signature:', signature);
@@ -205,16 +292,6 @@ export default function DemoPage() {
   const isListening = conversation.status === 'connected';
   const isSpeaking = conversation.mode === 'speaking';
 
-  const startSession = async () => {
-    try {
-      const response = await fetch('/api/agent/token');
-      const { signedUrl } = await response.json();
-      await conversation.startSession({ signedUrl });
-    } catch (error) {
-      console.error('Failed to start session:', error);
-    }
-  };
-
   const handleToggleSession = () => {
     if (isListening) {
       conversation.endSession();
@@ -231,6 +308,12 @@ export default function DemoPage() {
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden">
+        <UpgradeModal 
+          isOpen={showUpgrade} 
+          onClose={() => setShowUpgrade(false)} 
+          onSubscribe={handlePaySubscription}
+          isSubscribing={isSubscribing}
+        />
         {/* Left Sidebar: History */}
         <Sidebar className="border-r border-border/50 bg-muted/30">
           <SidebarHeader className="p-6 border-b border-border/50">

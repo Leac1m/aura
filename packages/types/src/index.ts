@@ -53,6 +53,17 @@ export const AURA_ESCROW_IDL = {
         { "name": "maxSlippage", "type": "u16" },
         { "name": "maxAllowance", "type": "u64" }
       ]
+    },
+    {
+      "name": "paySubscription",
+      "discriminator": [214, 139, 186, 253, 169, 248, 196, 11],
+      "accounts": [
+        { "name": "escrow", "writable": true, "signer": false },
+        { "name": "user", "writable": true, "signer": true },
+        { "name": "treasury", "writable": true, "signer": false },
+        { "name": "systemProgram", "writable": false, "signer": false }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -70,6 +81,7 @@ export const AURA_ESCROW_IDL = {
           { "name": "owner", "type": "pubkey" },
           { "name": "maxSlippage", "type": "u16" },
           { "name": "maxAllowance", "type": "u64" },
+          { "name": "subscriptionEnd", "type": "i64" },
           { "name": "bump", "type": "u8" }
         ]
       }

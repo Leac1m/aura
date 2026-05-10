@@ -1,8 +1,8 @@
 {
   "project_name": "Aura",
-  "current_phase": 6,
+  "current_phase": 7,
   "last_updated": "2026-05-10",
-  "status": "Implementing Action Execution (Swap via LI.FI)",
+  "status": "Implementing X402 Payment Gateway & Subscription",
   "milestones": [
     {
       "id": "roadmap_created",
@@ -116,14 +116,19 @@
     },
     {
       "id": "swap_feature_implementation",
-      "description": "Implementing LI.FI Swap integration for SOL/SPL tokens with manual UI integration",
+      "description": "Implemented LI.FI Swap integration for SOL/SPL tokens with manual UI integration",
+      "status": "completed"
+    },
+    {
+      "id": "x402_subscription_model",
+      "description": "Implementing X402 Payment Gateway and on-chain 30-day subscription model for voice agent",
       "status": "in_progress"
     }
   ],
   "technical_state": {
-    "backend": "Next.js App Router with ElevenLabs SDK (WebRTC Tokens) and LI.FI (Real SVM Routing)",
-    "on_chain": "Anchor program implemented and tested",
-    "mobile": "Expo app with ElevenLabs Conversation SDK, persistent MWA auth, and real LI.FI execution logic",
+    "backend": "Next.js App Router with X402 Subscription Guard and ElevenLabs SDK",
+    "on_chain": "Anchor program with pay_subscription (0.1 SOL) and time-bound proof logic",
+    "mobile": "Expo app with ElevenLabs Conversation SDK and MWA auth",
     "monorepo": "npm workspaces with @aura/types shared package"
   }
 }
